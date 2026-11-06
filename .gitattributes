@@ -1,0 +1,28 @@
+# ── Standard ──
+* text=auto eol=lf
+
+# ── Kildetekst ──
+*.ino      text eol=lf
+*.h        text eol=lf
+*.cpp      text eol=lf
+*.c        text eol=lf
+*.py       text eol=lf
+*.md       text eol=lf
+
+# ── Binære filer (ingen CRLF-konvertering) ──
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.step     binary
+*.stp      binary
+*.stl      binary
+*.FCStd    binary
+*.f3d      binary
+*.kicad_pcb binary
+*.kicad_sch binary
+*.pdf      binary
+*.zip      binary
+*.tar.gz   binary
+*.gbr      binary
+*.drl      binary

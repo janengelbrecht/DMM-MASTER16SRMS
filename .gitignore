@@ -1,0 +1,73 @@
+# ── Arduino / ESP32 ──
+build/
+*.bin
+*.elf
+*.map
+*.hex
+.vscode/
+.arduino15/
+libraries/
+
+# ── TFT_eSPI ──
+User_Setup_Select.h.bak
+TFT_eSPI-master/
+
+# ── KiCad ──
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.kicad_prl
+*-backups/
+*.bak
+fp-info-cache
+*.kicad_wks
+*.kicad_pro-journal
+_generated/
+_autosave-*
+
+# ── Altium ──
+*.SchDocPreview
+*.PcbDocPreview
+*.PrjPcbStructure
+*.OutJobHistory
+History/
+__Previews/
+
+# ── 3D / mekanik ──
+*.step.bak
+*.stl.tmp
+*.FCStd1
+*.f3d.bak
+Fusion360/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+
+# ── Data / logs ──
+*.csv
+*.log
+!docs/examples/*.csv
+!tools/python/examples/*.csv
+
+# ── Følsomme data ──
+secrets/
+*.key
+.env
+.env.*
