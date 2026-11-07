@@ -13,12 +13,7 @@
 > - ❌ **Kalibreringsmålinger fra fysisk prototype** — se `tools/calibration/README.md`
 >
 > Firmware er **funktionelt komplet i henhold til SRS-DMM-16SRMS-V6.0-MASSIVE**, men er endnu **ikke verificeret på fysisk hardware**.
-> Firmaware er simuleret og fundet 100% funktionel.
->
-> Meningen med projektet er at det kan tjene som afgangsprojekt for en ingeniør studerende.
-> Når prototype er opbygget og fundet funktionel skal al dokumentation oversættes til engelsk.
-> Derefter er håbet , at en kinesisk producent vil masseproducere instrumentet og sælge det billigt på ebay, Aliexpress, Banggood mv.
-> Dermed vil hobbyfolk, studerende mv. få et super godt bænkmultimeter til meget få penge. (antageligt <1000 kr).
+
 ---
 
 ## Indholdsfortegnelse
@@ -39,6 +34,8 @@
 14. [Licens](#licens)
 
 ---
+
+## Introduktion
 
 **DMM-MASTER 16SRMS** er et open-source hardware/software co-design af et **isoleret, 4½-cifret bænkmultimeter** med **CAT III (600 V)** sikkerhedsklassifikation.
 
