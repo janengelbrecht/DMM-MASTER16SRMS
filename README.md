@@ -75,7 +75,7 @@ Meningen med projektet er, at det kan tjene som **afgangsprojekt for en ingeniø
 
 1. Al dokumentation oversættes til **engelsk**.
 2. Håbet er, at en **kinesisk producent** vil masseproducere instrumentet og sælge det billigt på eBay, AliExpress, Banggood m.v.
-3. Dermed får hobbyfolk og studerende et super godt bænkmultimeter til meget få penge (**anslået < 1.000 kr**).
+3. Dermed får hobbyfolk og studerende et super godt bænkmultimeter til meget få penge (**anslået < 1.000 kr.**).
 
 ---
 
@@ -97,7 +97,7 @@ Altså: Åbenhed og gennemsigtighed frem for spec-sheet-konkurrence med premium-
 
 ---
 
-## ⭐ Hvorfor projektet er anderledes
+## ⭐ Hvorfor dette projekt er anderledes
 
 | Funktion | Typisk lavpris-DMM | DMM-MASTER 16SRMS |
 |----------|-------------------|-------------------|
@@ -147,6 +147,8 @@ Altså: Åbenhed og gennemsigtighed frem for spec-sheet-konkurrence med premium-
 ## 🏗️ Systemarkitektur
 
 Systemet er opdelt i to **galvanisk isolerede domæner** adskilt af en fysisk PCB-barriere på minimum 8 mm:
+
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ZONE A — KONTROLDOMÆNE (digital jord, berøringssikker)             │
 │                                                                     │
@@ -240,6 +242,8 @@ Firmwaren følger de **strenge krav** i `kravspecifikation_firmware.md` (SRS-DMM
 | **SCPI-parser** | `handleScpiCommand()` | IEEE 488.2 / SCPI-1999 |
 
 ### Firmware-filer
+
+```text
 firmware/
 ├── Multimeter_Firmware.ino    ← Hele firmwaren (én fil)
 └── User_Setup.h               ← TFT_eSPI-konfiguration (SSD1963, 8-bit parallel)
@@ -265,14 +269,13 @@ Instrumentet emulerer en **USB-CDC Virtual COM Port** og taler standard SCPI (IE
 
 ### Forbindelsesparametre
 
+```text
 Baudrate:      115200
 Databits:      8
 Paritet:       None
 Stopbits:      1
 Flow control:  None
-Terminering:
-
-(LF)
+Terminering:   \n (LF)
 
 ### Kommandosæt (uddrag)
 
@@ -297,6 +300,7 @@ Se `docs/scpi-reference.md` for fuld dokumentation.
 
 ### Python-eksempel
 
+```python
 import serial
 import time
 
@@ -317,36 +321,56 @@ for _ in range(10):
 
 dmm.close()
 
-###🚀 Kom godt i gang
-Klargør hardware (når prototypen er klar)
+## 🚀 Kom godt i gang
 
-##⚠️ Hardware er endnu ikke publiceret.
+### 1. Klargør hardware
 
-Installer Arduino IDE 2.x — download fra arduino.cc/en/software.
+> ⚠️ Hardware er endnu ikke publiceret.
 
-Tilføj ESP32 Boards Manager URL under File → Preferences → Additional Boards Manager URLs:
-[https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json](https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json)
+### 2. Installer Arduino IDE 2.x
 
+Download fra [arduino.cc/en/software](https://www.arduino.cc/en/software).
+
+### 3. Tilføj ESP32 Boards Manager URL
+
+Under **File → Preferences → Additional Boards Manager URLs**:
+
+```text
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 Installer ESP32 Core via Tools → Board → Boards Manager.
 
-Installer biblioteker via Sketch → Include Library → Manage Libraries:
+### 4. Installer ESP32 Core
 
-Adafruit ADS1X15 (v2.4.0+)
+Via **Tools → Board → Boards Manager**.
 
-TFT_eSPI af Bodmer (v2.5.0+)
+### 5. Installer biblioteker
 
-Konfigurer TFT_eSPI — kopiér firmware/User_Setup.h til TFT_eSPI's biblioteksmappe.
+Via **Sketch → Include Library → Manage Libraries**:
 
-Vælg board og partition: ESP32 Dev Module + No OTA (2MB APP/2MB SPIFFS).
+- Adafruit ADS1X15 (v2.4.0+)
+- TFT_eSPI af Bodmer (v2.5.0+)
 
-Upload firmware — åbn firmware/Multimeter_Firmware.ino og tryk Upload.
+### 6. Konfigurer TFT_eSPI
 
-Tilslut og test:
+Kopiér `firmware/User_Setup.h` til TFT_eSPI's biblioteksmappe.
+
+### 7. Vælg board og partition
+
+**ESP32 Dev Module** + **No OTA (2MB APP/2MB SPIFFS)**.
+
+### 8. Upload firmware
+
+Åbn `firmware/Multimeter_Firmware.ino` og tryk **Upload**.
+
+### 9. Tilslut og test
+
+```bash
 pip install -r requirements.txt
-   python tools/scpi_test.py
+python tools/scpi_test.py
    
-###🗂️ Projektstruktur
+## 🗂️ Projektstruktur
 
+```text
 DMM-MASTER-16SRMS/
 │
 ├── README.md                          ← Hoveddokument
@@ -379,124 +403,118 @@ DMM-MASTER-16SRMS/
 │
 └── images/                            ← ❌ Skærmbilleder (mangler)
 
-###🕳️ Hvad der stadig mangler
+## 🕳️ Hvad der stadig mangler
 
-Område										StatusPrioritet			KiCad-diagrammer 
-(Blok 1–10)									❌ Mangler				🔴 Høj
-PCB-layout med isolationsslidser			❌ Mangler				🔴 Høj
-BOM med verificerede MPN'er					❌ Mangler				🔴 Høj
-3D-kabinet (.STEP/.STL)						❌ Mangler				🟡 Medium
-Prototype-fotografier						❌ Mangler				🟡 Medium
-GUI-skærmbilleder							❌ Mangler				🟢 Lav
-Kalibreringsmålinger fra fysisk hardware	❌ Mangler				🔴 Høj
-Verifikation af firmware på fysisk hardware	❌ Mangler				🔴 Høj
+| Område | Status | Prioritet |
+|--------|--------|-----------|
+| KiCad-diagrammer (Blok 1–10) | ❌ Mangler | 🔴 Høj |
+| PCB-layout med isolationsslidser | ❌ Mangler | 🔴 Høj |
+| BOM med verificerede MPN'er | ❌ Mangler | 🔴 Høj |
+| 3D-kabinet (.STEP/.STL) | ❌ Mangler | 🟡 Medium |
+| Prototype-fotografier | ❌ Mangler | 🟡 Medium |
+| GUI-skærmbilleder | ❌ Mangler | 🟢 Lav |
+| Kalibreringsmålinger fra fysisk hardware | ❌ Mangler | 🔴 Høj |
+| Verifikation af firmware på fysisk hardware | ❌ Mangler | 🔴 Høj |
 
-Se hardware/README.md og images/README.md for detaljer.
+Se `hardware/README.md` og `images/README.md` for detaljer.
 
-###🔒 Sikkerhed — læs dette først
-⚠️ DETTE INSTRUMENT ER DESIGNET TIL CAT III (600 V), MEN ER ENDNU IKKE CERTIFICERET.
+---
 
-Prototypen er ikke blevet testet på fysisk hardware. Brug aldrig en uverificeret prototype til at måle på netspænding (230 V) eller andre farlige spændinger.
+## 🔒 Sikkerhed — læs dette først
 
-Designprincipper for sikkerhed
-Galvanisk isolation: 8 mm fysisk krybeafstand + fræsede slidser i PCB → >4000 V RMS isolation mellem Zone A og Zone B.
+> ⚠️ **DETTE INSTRUMENT ER DESIGNET TIL CAT III (600 V), MEN ER ENDNU IKKE CERTIFICERET.**
+>
+> Prototypen er ikke blevet testet på fysisk hardware. Brug aldrig en uverificeret prototype til at måle på netspænding (230 V) eller andre farlige spændinger.
 
-Transientbeskyttelse: GDT + MOV klamper 6 kV transienter på <1 ns.
+### Designprincipper for sikkerhed
 
-"Hov-fejl"-beskyttelse: LM393-komparator + IRAM-låst ISR reagerer på <1 µs ved 230 V i Ohm-mode.
+- **Galvanisk isolation:** 8 mm fysisk krybeafstand + fræsede slidser i PCB → >4000 V RMS isolation mellem Zone A og Zone B.
+- **Transientbeskyttelse:** GDT + MOV klamper 6 kV transienter på <1 ns.
+- **"Hov-fejl"-beskyttelse:** LM393-komparator + IRAM-låst ISR reagerer på <1 µs ved 230 V i Ohm-mode.
+- **HRC-sikring:** 10 A / 1000 V keramisk sandfyldt sikring på højstrømsindgangen.
+- **Brandhæmmende kabinet:** UL94 V-0 plast med interne plastbarrierer.
 
-HRC-sikring: 10 A / 1000 V keramisk sandfyldt sikring på højstrømsindgangen.
+### Sikkerhedsregler for brugeren
 
-Brandhæmmende kabinet: UL94 V-0 plast med interne plastbarrierer.
+- Hold kun på plastikken på testledningerne — aldrig på metallet.
+- Mål aldrig på 230 V alene — få altid en erfaren person til at overvære det.
+- Sort ledning ind først, ud sidst.
+- Brug altid passende CAT-rating på testledningerne.
 
-Sikkerhedsregler for brugeren
-Hold kun på plastikken på testledningerne — aldrig på metallet.
+---
 
-Mål aldrig på 230 V alene — få altid en erfaren person til at overvære det.
+## 🗺️ Roadmap
 
-Sort ledning ind først, ud sidst.
+### ✅ Fase 1 — Firmware og dokumentation (2025–2026)
 
-Brug altid passende CAT-rating på testledningerne.
+- [x] Kravspecifikation (SRS)
+- [x] Teknisk manual
+- [x] Firmware (én fil, 100 % kommenteret)
+- [x] SCPI-reference
+- [x] Kalibreringsprocedure
 
-###🗺️ Roadmap
-✅ Fase 1 — Firmware og dokumentation (2025–2026)
-[x] Kravspecifikation (SRS)
+### 🚧 Fase 2 — Hardware-design (2026)
 
-[x] Teknisk manual
+- [ ] KiCad-diagrammer for alle 10 blokke
+- [ ] PCB-layout med isolationsslidser og guard-rings
+- [ ] BOM med verificerede MPN'er
+- [ ] 3D-kabinet med CAT III-barrierer
 
-[x] Firmware (én fil, 100 % kommenteret)
+### 🔜 Fase 3 — Prototype og verifikation (2026–2027)
 
-[x] SCPI-reference
+- [ ] Fysisk prototype (første revision)
+- [ ] Firmware-verifikation på hardware
+- [ ] Kalibreringsmålinger
+- [ ] Billeder og skærmbilleder
+- [ ] Eventuel ekstern sikkerhedscertificering (IEC 61010-1)
 
-[x] Kalibreringsprocedure
+### 🔮 Fase 4 — Produktion (2027+)
 
-🚧 Fase 2 — Hardware-design (2026)
-[ ] KiCad-diagrammer for alle 10 blokke
+- [ ] Produktionsmoden PCB
+- [ ] Produktionsklar BOM
+- [ ] Salgsklar dokumentation
 
-[ ] PCB-layout med isolationsslidser og guard-rings
+---
 
-[ ] BOM med verificerede MPN'er
+## 🤝 Bidrag
 
-[ ] 3D-kabinet med CAT III-barrierer
-
-🔜 Fase 3 — Prototype og verifikation (2026–2027)
-[ ] Fysisk prototype (første revision)
-
-[ ] Firmware-verifikation på hardware
-
-[ ] Kalibreringsmålinger
-
-[ ] Billeder og skærmbilleder
-
-[ ] Eventuel ekstern sikkerhedscertificering (IEC 61010-1)
-
-🔮 Fase 4 — Produktion (2027+)
-[ ] Produktionsmoden PCB
-
-[ ] Produktionsklar BOM
-
-[ ] Salgsklar dokumentation
-
-###🤝 Bidrag
 Bidrag er meget velkomne — især inden for hardware-design og 3D-kabinet, hvor de største huller er lige nu.
 
-Se CONTRIBUTING.md for retningslinjer. Kort opsummeret:
+Se `CONTRIBUTING.md` for retningslinjer. Kort opsummeret:
 
-Firmware: Følg de strenge krav i SRS (én fil, 100 % kommentarer, beskrivende navne).
+- **Firmware:** Følg de strenge krav i SRS (én fil, 100 % kommentarer, beskrivende navne).
+- **Hardware:** Følg designkravene i `docs/HW-SW-SPEC-V6.0-MASTER.md` (isolation, creepage, thermal).
+- **Dokumentation:** Dansk eller engelsk, klar og præcis.
+- **Bug reports:** Brug `bug_report.md`-skabelonen.
 
-Hardware: Følg designkravene i docs/HW-SW-SPEC-V6.0-MASTER.md (isolation, creepage, thermal).
+### Prioriteret rækkefølge for hjælp
 
-Dokumentation: Dansk eller engelsk, klar og præcis.
+1. 🔴 KiCad-diagrammer for alle 10 blokke
+2. 🔴 PCB-layout med isolationsslidser og guard-rings
+3. 🔴 BOM med verificerede MPN'er og tolerancer
+4. 🟡 Kabinet med CAT III-barrierer og 19 mm bøsningsafstand
 
-Bug reports: Brug bug_report.md-skabelonen.
+---
 
-Prioriteret rækkefølge for hjælp
-🔴 KiCad-diagrammer for alle 10 blokke
+## 📄 Licens
 
-🔴 PCB-layout med isolationsslidser og guard-rings
+Dette projekt er open source. Se `LICENSE` for detaljer.
 
-🔴 BOM med verificerede MPN'er og tolerancer
+- **Firmware og dokumentation:** Anbefalet MIT eller Apache 2.0
+- **Hardware-design:** Anbefalet CERN-OHL-S eller TAPR OHL
 
-🟡 Kabinet med CAT III-barrierer og 19 mm bøsningsafstand
+> **Bemærk:** Den endelige licens er ikke fastlagt endnu. Se `LICENSE`, når den publiceres.
 
-📄 Licens
-Dette projekt er open source. Se LICENSE for detaljer.
+---
 
-Firmware og dokumentation: Anbefalet MIT eller Apache 2.0
+## 🔗 Kontakt og links
 
-Hardware-design: Anbefalet CERN-OHL-S eller TAPR OHL
+- **Projekt:** DMM-MASTER 16SRMS
+- **Repository:** [https://github.com/janengelbrecht/DMM-MASTER16SRMS](https://github.com/janengelbrecht/DMM-MASTER16SRMS)
+- **Version:** 6.0
+- **Dokument-ID:** README-DMM-16SRMS-V6.0
+- **Status:** 🚧 Under udvikling
 
-Bemærk: Den endelige licens er ikke fastlagt endnu. Se LICENSE, når den publiceres.
+---
 
-###🔗 Kontakt og links
-Projekt: DMM-MASTER 16SRMS
-
-Repository: https://github.com/janengelbrecht/DMM-MASTER16SRMS
-
-Version: 6.0
-
-Dokument-ID: README-DMM-16SRMS-V6.0
-
-Status: 🚧 Under udvikling
-
-DMM-MASTER 16SRMS — et open-source colosseum i 4½-cifret-klassen.
+**DMM-MASTER 16SRMS** — et open-source colosseum i 4½-cifret-klassen.
