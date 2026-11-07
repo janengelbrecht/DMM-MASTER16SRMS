@@ -15,7 +15,7 @@
 > Firmware er **funktionelt komplet i henhold til SRS-DMM-16SRMS-V6.0-MASSIVE**, men er endnu **ikke verificeret på fysisk hardware**.
 > Firmware er simuleret og fundet fejlfri.
 > Hardwaren er simuleret som den er beskrevet og fundet fejlfri.
-> Da det er et bænkmultimeter der primært vil komme til at måle på lysnettilsluttet udstyr kan man sikkert slække kravene til CAT II.
+> Da det er et bænkmultimeter der primært vil komme til at måle på lysnettilsluttet udstyr kan man sikkert sænke kravene til CAT II.
 > Men det skader ikke at designe efter CAT III hovedsagligt.
 
 ---
