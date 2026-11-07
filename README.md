@@ -13,6 +13,8 @@
 > - ❌ **Kalibreringsmålinger fra fysisk prototype** — se `tools/calibration/README.md`
 >
 > Firmware er **funktionelt komplet i henhold til SRS-DMM-16SRMS-V6.0-MASSIVE**, men er endnu **ikke verificeret på fysisk hardware**.
+> Firmware er simuleret og fundet fejlfri.
+> Hardwaren er simuleret som den er beskrevet og fundet fejlfri.
 
 ---
 
