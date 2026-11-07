@@ -72,3 +72,99 @@ Prioriteret rækkefølge:
    (6-polet: MOSI, SCLK, CS, DC, RST, GND), IKKE SSD1963 8-bit parallel.
 3. **BOM** med verificerede MPN'er og tolerancer
 4. **Kabinet** med CAT III-barrierer og 19 mm bøsningsafstand
+
+1. DC Spændingsmåling (DCV)Signalet dæmpes via et præcisionsnetværk, bufres for højimpedans og måles single-ended.Plaintext[V/Ω Indgang] ──┐
+                │
+         [GDT 600V + MOV S10K300] (Transientbeskyttelse)
+                │
+                ▼
+  [10 MΩ Spændingsdeler] ── (10 stk. 1MΩ 1206, 0.1%)
+                │
+                ├── [Relæ K1] (DIV10)  ──> GND_ISO
+                ├── [Relæ K2] (DIV100) ──> GND_ISO
+                │
+                ▼
+        [JFET-Buffer] (LSK170 / ADA4530, for >1 GΩ impedans)
+                │
+                ▼ (DC-koblet)
+  [ADS1115 ADC : AIN0]
+  
+Første forsvarslinje er en 10 mm varistor i serie med et gasudladningsrør, der klamper transienter over 560 V. 
+Herefter nedskaleres spændingen gennem et 10 MΩ daisy-chain modstandsnetværk styret af ultra-lav-lækage Omron G6K relæer, 
+før signalet for de to laveste områder (600 mV og 6 V) dirigeres gennem en JFET-buffer for at sikre >1 GΩ indgangsimpedans. 
+Det rå DC-signal føres direkte til ADC'ens AIN0-kanal.   2. AC Spændingsmåling (ACV - True RMS)Signalet følger samme indgangstrin som DC, 
+men dirigeres AC-koblet til den analoge RMS-konverter.Plaintext[V/Ω Indgang] ──> [Transientbeskyttelse] ──> [10 MΩ Spændingsdeler]
+                                                    │
+                                                    ▼
+                                            [JFET-Buffer]
+                                                    │
+                                                    ▼ (AC-koblet)
+                                            [Relæ K3] (AC_ROUTE)
+                                                    │
+                                                    ▼
+                                      [AD8436 True RMS Konverter] 
+                                      (med 3.3 µF C_AVG kondensator)
+                                                    │
+                                                    ▼ (0-4V DC output)
+                                            [ADS1115 ADC : AIN1]
+											
+Signalet benytter den samme spændingsdeler og FET-buffer som DC-målingen, hvorefter det routes via AC_ROUTE relæet ind i en AD8436 True RMS-IC. 
+AD8436-chippen udnytter en 3.3 µF lav-lækage gennemsnitskondensator til integration og konverterer AC-signalet (op til 100 kHz båndbredde) 
+til et rent DC-spændingssignal. Dette proportionale DC-signal aflæses på ADC'ens AIN1-kanal.   
+
+3. DC Strømmåling (DCI)Strømmen ledes gennem fysiske shunts, og spændingsfaldet måles differentielt for maksimal nøjagtighed.
+Plaintext[mA/µA Indgang] ────> [PTC + Elektronisk Klamper] ─────┐
+																│
+		 [10A Indgang] ──────> [11A HRC Keramisk Sikring] ──────┤
+																│
+																▼
+								   [Shunts (Blok 10)] ◄─────────┴─────────> [COM Indgang]
+														• 100 Ω (µA)                           
+														• 1 Ω (mA)
+														• 0.01 Ω 5W Manganin (10A)
+																│
+																│ (Spændingsfald)
+																▼
+													[ADS1115 ADC : AIN2 & AIN3] (Differentielt input)
+													
+Lavstrømsindgangen er beskyttet af en PTC-termistor og en elektronisk klamper (BJT/MOSFET-baseret), 
+mens 10 A-indgangen afbrydes mekanisk af en Bussmann 11 A / 1000 V HRC-sikring ved overstrøm. 
+Strømmen afsætter et spændingsfald over enten præcisionsmodstandene (100 Ω / 1 Ω) eller den ultra-stabile 0.01 Ω Manganin-shunt. 
+Spændingsfaldet aflæses differentielt direkte over chippens AIN2 og AIN3.   
+
+4. AC Strømmåling (ACI)Spændingsfaldet fra den valgte shunt multiplexes til RMS-konverteren frem for direkte til ADC'en.
+Plaintext[Strømindgange] ──> [Beskyttelse & HRC Sikring] ──> [Shunts] ──> [COM Indgang]
+																				│
+																				│ (Spændingsfald)
+																				▼
+																	[Relæ Multiplexing]
+																				│
+																				▼
+																	[AD8436 True RMS Konverter]
+																				│
+																				▼ (0-4V DC output)
+																		[ADS1115 ADC : AIN1]
+I stedet for at læse strømsignalets spændingsfald direkte på ADC'en, routes signalet i ACI-mode gennem systemets True RMS IC (AD8436) via relæ-styring. 
+AD8436 leverer derefter DC-ækvivalenten ind til ADC'ens AIN1.   
+
+5. Modstandsmåling (Ohms)Designet benytter en 4-leder Kelvin-topologi parret med en "Hov-fejl" detektor for aktiv beskyttelse mod netspænding.Plaintext[Konstantstrømskilde]
+																	(LT1006 OP-amp + LM336-2.5V Ref)
+																				│
+																				▼ (100nA - 1mA teststrøm)
+													[PTC 100mA, 600V] ──────────┬──────────> ["Force" ud via V/Ω] ──> [DUT] ──> [COM retur]
+															│                                                │
+								[Klamperdioder 1N4148] ◄────┤                                                │
+								(til VCC_ISO / GND_ISO)     │                                                │
+															▼                                                │
+								[LM393 Komparator] ──> [Hardware Interrupt til ESP32 via 6N137 Opto]         │
+								(Ved >4.5V på node)                                                          │
+																											 │
+															┌────────────────────────────────────────────────┘
+															│ (Kelvin Sense linjer)
+															▼
+												[ADS1115 ADC : AIN2 & AIN3] (Differentielt input)
+En LT1006 præcisions-OP-amp parret med en stabil 2.5 V reference udstyrer terminalerne med en kontrolleret teststrøm, 
+mens Kelvin-matrixen sender spændingsfaldet direkte tilbage til AIN2 og AIN3 differentielt. 
+For at beskytte mod 230 V indsat ved en fejl ("hov-fejl"), klamper 1N4148-dioder spændingen til strømforsyningens rails, 
+hvorefter PTC-termistoren hurtigt begrænser strømmen. Samtidig overvåger en LM393 komparator spændingsknudepunktet
+og udløser på under et mikrosekund et hardware-interrupt via en 6N137 optokobler over til ESP32, så relæerne kan frakobles og skaden begrænses. 
