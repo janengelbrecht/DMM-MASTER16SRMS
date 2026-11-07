@@ -4,7 +4,7 @@
 
 > ⚠️ **PROJEKTSTATUS: UNDER UDVIKLING (WORK IN PROGRESS)**
 >
-> Dette projekt er **ikke færdigt**. Firmware og dokumentation er langt, men følgende dele mangler stadig og er ikke publiceret endnu:
+> Dette projekt er **ikke færdigt**. Firmware og dokumentation er lavet, og 100% iorden, men følgende dele mangler stadig og er ikke publiceret endnu:
 >
 > - ❌ **Komplette diagrammer (KiCad/Altium)** — se `hardware/schematics/README.md`
 > - ❌ **PCB-layout og Gerber-filer** — se `hardware/pcb/README.md`
