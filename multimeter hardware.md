@@ -12,7 +12,13 @@
 **AUTHOR(S):** R&D Department  
 **EFFECTIVE DATE:** NOVEMBER 05, 2026  
 **OWNER / DEPT:** JEP-Electronics  
-**CHANGE ORDER:** ECO-2026-1105-B  
+**CHANGE ORDER:     ECO-2026-1105-B
+REVISION:         V6.1 (2026-11-08)
+REVISION NOTES:   - Display-controller opdateret fra SSD1963 til RA8875 (SPI).
+                    SSD1963 er aflyst pga. manglende TFT_eSPI SPI-driver.
+                  - TFT pin-mapping tilføjet i §1.4.
+                  - SPI-frekvens fastlåst til 20 MHz (RA8875 anbefalet maksimum).
+                  - Fysisk display-modul: Buydisplay ER-TFTM050-3 (eller tilsvarende).
 
 ---
 
@@ -46,13 +52,21 @@ Dette afsnit definerer systemets instrumentelle formåen. Den underliggende 16-b
 * **Max Opløsning:** 0,01 Ω (10 mΩ) på 600 Ω området.
 
 ## 1.0.1 SYSTEMARKITEKTUR OG OVERORDNEDE DESIGNKRAV
-Dette instrument er et dual-zone, galvanisk isoleret præcisionsmultimeter, der forener en analog 16-bit front-end med en dual-core 32-bit DSP-motor. For at opnå fuld overensstemmelse med CAT III (600V) miljøer, SKAL systemet implementere en streng adskillelse mellem brugerens kontroldomæne og det flydende måledomæne.
+Dette instrument er et dual-zone, galvanisk isoleret præcisionsmultimeter, der forener
+en analog 16-bit front-end med en dual-core 32-bit DSP-motor. Brugerfladen realiseres
+via et 5" 800×480 TFT-display med RA8875-controller (SPI, 20 MHz) drevet af TFT_eSPI.
+For at opnå fuld overensstemmelse med CAT III (600V) miljøer, 
+SKAL systemet implementere en streng adskillelse mellem brugerens kontroldomæne 
+og det flydende måledomæne.
 
 ### 1.1.1 Sikkerhed og Isolation (Zone-opdeling)
 * **Zone A (Kontroldomæne):** Omfatter MCU (ESP32), 5" TFT-display, USB-CDC interface til PC samt den digitale 5V/3.3V strømforsyning
 * **Zone B (Måledomæne):** Omfatter analog front-end (AFE), True RMS konverter, ADC, strømshunts og isoleret +/-5V strømforsyning
 * **Isolationsbarriere:** Mellem Zone A og Zone B SKAL der være en fysisk PCB-krybeafstand på minimum 8,0 mm, der garanterer en dielektrisk modstandsdygtighed på >4000V RMS
-* **Digital Signaloverførsel:** Al datatrafik over barrieren SKAL foregå via optokoblere (f.eks. PC817/6N137 til interrupt/relæer) og kapacitive isolatorer (ISO1541 til I2C)
+* **Digital Signaloverførsel: Al datatrafik over barrieren SKAL foregå via optokoblere
+(f.eks. PC817/6N137 til interrupt/relæer) og kapacitive isolatorer (ISO1541 til I2C).
+Bemærk: SPI-bussen til TFT-displayet (RA8875) forbliver i Zone A og krydser
+IKKE isolationsbarrieren, da displayet er en del af brugerens kontroldomæne.
 
 ## 1.2.0 METROLOGISKE SPECIFIKATIONER
 Instrumentets hardware SKAL understøtte følgende måletekniske parametre via den integrerede 16-bit Texas Instruments ADS1115 Delta-Sigma ADC konfigureret til ±4,096V Full Scale ved 100 målinger pr. sekund (SPS).
@@ -98,7 +112,27 @@ Sikkerhedskredsløbet SKAL udelukke instrument- eller personskade, hvis 230V net
 ESP32 Dev Module fungerer som systemets MCU og SKAL forbindes eksakt efter følgende hardware pin-mapping for at garantere firmware-kompatibilitet og forhindre I/O konflikter:
 * **I2C Bus (via ISO1541):** PIN_I2C_SDA = GPIO 21, PIN_I2C_SCL = GPIO 22 (termineret m. 10k pull-ups).
 * **Auto-Ranging Relæer:** PIN_RELAY_DIV10 = GPIO 13, PIN_RELAY_DIV100 = GPIO 12, PIN_RELAY_AC_ROUTE = GPIO 14, PIN_RELAY_OHM = GPIO 27.
-* **Katastrofe-Interrupt:** PIN_FAULT_INT = GPIO 25.
+* **Katastrofe-Interrupt: PIN_FAULT_INT = GPIO 25.
+
+TFT-Display (SPI, RA8875):
+    PIN_TFT_MOSI = GPIO 4    // SPI MOSI til display.
+    PIN_TFT_SCLK = GPIO 5    // SPI SCLK til display.
+    PIN_TFT_CS   = GPIO 33   // Chip select.
+    PIN_TFT_DC   = GPIO 32   // Data/Command (RS).
+    PIN_TFT_RST  = GPIO 23   // Hardware reset.
+    SPI-frekvens: 20 MHz (maksimalt anbefalet for RA8875 på lange PCB-baner).
+    Controller: RA8875 (800×480 SPI).
+
+    ⚠️ AFLYSNING AF SSD1963:
+    Den oprindelige specifikation refererede til SSD1963 i SPI-mode.
+    Dette er IKKE længere gyldigt. TFT_eSPI understøtter KUN SSD1963 i
+    8-bit/16-bit parallel-tilstand (SSD1963_8DRIVER / SSD1963_DRIVER med
+    TFT_PARALLEL_*_BIT), hvilket ville kræve 12 frie GPIOs — mere end
+    ESP32'eren har til rådighed, når relæer (GPIO 12/13/14/27), interrupt
+    (GPIO 25) og I2C (GPIO 21/22) er reserveret. RA8875 er den eneste
+    800×480 SPI-controller, som TFT_eSPI reelt understøtter.
+    Det fysiske display-modul SKAL være RA8875-baseret (f.eks. Buydisplay
+    ER-TFTM050-3).
 * **Hukommelse & Partitionering:** ESP32 SKAL konfigureres med et Custom Partition Table (eller No OTA 2MB APP/2MB SPIFFS) for at tillade indbygget LittleFS til lagring af SCPI CSV-datalogging.
 
 ## 1.5 KRAV TIL REAL-TIME OPERATIVSYSTEM (RTOS) HARDWARE INTEGRATION
