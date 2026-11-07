@@ -297,7 +297,6 @@ Se `docs/scpi-reference.md` for fuld dokumentation.
 
 ### Python-eksempel
 
-```python
 import serial
 import time
 
@@ -318,10 +317,10 @@ for _ in range(10):
 
 dmm.close()
 
-🚀 Kom godt i gang
+###🚀 Kom godt i gang
 Klargør hardware (når prototypen er klar)
 
-⚠️ Hardware er endnu ikke publiceret.
+##⚠️ Hardware er endnu ikke publiceret.
 
 Installer Arduino IDE 2.x — download fra arduino.cc/en/software.
 
@@ -346,7 +345,7 @@ Tilslut og test:
 pip install -r requirements.txt
    python tools/scpi_test.py
    
-🗂️ Projektstruktur
+###🗂️ Projektstruktur
 
 DMM-MASTER-16SRMS/
 │
@@ -380,7 +379,7 @@ DMM-MASTER-16SRMS/
 │
 └── images/                            ← ❌ Skærmbilleder (mangler)
 
-🕳️ Hvad der stadig mangler
+###🕳️ Hvad der stadig mangler
 
 Område										StatusPrioritet			KiCad-diagrammer 
 (Blok 1–10)									❌ Mangler				🔴 Høj
@@ -394,7 +393,7 @@ Verifikation af firmware på fysisk hardware	❌ Mangler				🔴 Høj
 
 Se hardware/README.md og images/README.md for detaljer.
 
-🔒 Sikkerhed — læs dette først
+###🔒 Sikkerhed — læs dette først
 ⚠️ DETTE INSTRUMENT ER DESIGNET TIL CAT III (600 V), MEN ER ENDNU IKKE CERTIFICERET.
 
 Prototypen er ikke blevet testet på fysisk hardware. Brug aldrig en uverificeret prototype til at måle på netspænding (230 V) eller andre farlige spændinger.
@@ -419,7 +418,7 @@ Sort ledning ind først, ud sidst.
 
 Brug altid passende CAT-rating på testledningerne.
 
-🗺️ Roadmap
+###🗺️ Roadmap
 ✅ Fase 1 — Firmware og dokumentation (2025–2026)
 [x] Kravspecifikation (SRS)
 
@@ -458,7 +457,7 @@ Brug altid passende CAT-rating på testledningerne.
 
 [ ] Salgsklar dokumentation
 
-🤝 Bidrag
+###🤝 Bidrag
 Bidrag er meget velkomne — især inden for hardware-design og 3D-kabinet, hvor de største huller er lige nu.
 
 Se CONTRIBUTING.md for retningslinjer. Kort opsummeret:
@@ -489,7 +488,7 @@ Hardware-design: Anbefalet CERN-OHL-S eller TAPR OHL
 
 Bemærk: Den endelige licens er ikke fastlagt endnu. Se LICENSE, når den publiceres.
 
-🔗 Kontakt og links
+###🔗 Kontakt og links
 Projekt: DMM-MASTER 16SRMS
 
 Repository: https://github.com/janengelbrecht/DMM-MASTER16SRMS
