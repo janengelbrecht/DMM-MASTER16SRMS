@@ -217,7 +217,7 @@ Kredsløbet er designet med en stringent dual-zone arkitektur for at imødekomme
   * **IC:** Texas Instruments ADS1115 (16-bit Delta-Sigma ADC).
   * **Opsætning:** Den indbyggede PGA (Programmable Gain Amplifier) konfigureres via ESP32 til ±4.096V Full Scale.
   * **Kanal-routing:** AIN0 = DC Spænding, AIN1 = AC RMS Spænding, AIN2/AIN3 = Differential input fra Kelvin Sense linjerne / Strømshunts.
-  * **Databus:** Kommunicerer 100 målinger pr. sekund (100 SPS) via den lokale I2C-bus, som termineres med 10k pull-ups til VCC_ISO.
+  * **Databus:** Kommunicerer 475 målinger pr. sekund (475 SPS) via den lokale I2C-bus, som termineres med 10k pull-ups til VCC_ISO. Firmwaren decimerer til ~83 Hz reel sample-rate via loop-timing. (ADS1115 har ingen 100 SPS-indstilling.)
 
 ### BLOK 9: DIGITAL ISOLATIONSBARRIERE
 * **Funktion:** Usynlig galvanisk mur, der overfører styresignaler og data uden metallisk kontakt, hvilket tillader ESP32 at sidde sikkert forbundet til en PC (via USB).
@@ -228,7 +228,7 @@ Kredsløbet er designet med en stringent dual-zone arkitektur for at imødekomme
 
 ### BLOK 7: KONTROLENHED, FIRMWARE (DSP) & BRUGERFLADE (ZONE A)
 * **Funktion:** Systemets "Master Brain", der transformerer rå 16-bit data til "super"-niveau ydelse og muliggør SCPI-integration med eksternt udstyr.
-* **Hardware:** ESP32-WROOM-32 forbundet til en 4.3" eller 5" TFT-skærm via SPI. Inkluderer en Piezo-buzzer.
+* **Hardware:** ESP32-WROOM-32 forbundet til en 5" 800×480 TFT-skærm med **RA8875-controller** via SPI (TFT_eSPI-kompatibel). Inkluderer en Piezo-buzzer på GPIO 26.
 * **Firmware (Digital Signal Processing):**
   * **Oversampling & Decimation:** Ved kontinuerligt at aflæse ADS1115 med 100 SPS og implementere et software "Moving Average" filter, kan opløsningen virtuelt forøges (opnår stabilt 4.5 cifre) og 50 Hz netstøj elimineres (NMRR > 60 dB).
   * **Software-Kalibrering:** Intet fysisk trimmepotentiometer. ESP32 lagrer 2-punkts kalibrering (Offset og Gain) for hvert range i dens interne NVS-flash.
@@ -264,6 +264,5 @@ De elektriske sikkerhedsregler beskrevet i Afsnit 6.0 SKAL omsættes til faktisk
 ## 4.4 MEKANISK DESIGN OG KABINET (ENCLOSURE)
 For at opfylde IEC 61010-1 CAT III kravene og sikre instrumentets ergonomi, SKAL der leveres komplet mekanisk dokumentation.
 * **3D-Modeller:** Der SKAL udarbejdes 3D CAD-filer (STEP eller IGES format) af det fulde specialdesignede kabinet.
-* **Skærm- og Printmontering:** Designet SKAL inkludere præcise monteringsbosser (standoffs) til hoved-PCB'et samt en integreret ramme (bezel) med tolerancer, der sikrer stabil fastgørelse af det 5" TFT-display uden at udsætte det for mekanisk stress.
-* **Terminal-placering:** Frontpanelet SKAL dimensioneres så de 4 mm sikkerhedsbøsninger (V/Ω, COM, mA/µA, 10A) overholder standard-afstanden på 19 mm (0.75") fra center til center, så standardudstyr og dual-bananstik kan anvendes.
+* **Skærm- og Printmontering:** Designet SKAL inkludere præcise monteringsbosser (standoffs) til hoved-PCB'et samt en integreret ramme (bezel) med tolerancer, der sikrer stabil fastgørelse af det 5" **RA8875-baserede** TFT-display uden at udsætte det for mekanisk stress. Displayets fysiske footprint skal verificeres mod det valgte modul (f.eks. Buydisplay ER-TFTM050-3).* **Terminal-placering:** Frontpanelet SKAL dimensioneres så de 4 mm sikkerhedsbøsninger (V/Ω, COM, mA/µA, 10A) overholder standard-afstanden på 19 mm (0.75") fra center til center, så standardudstyr og dual-bananstik kan anvendes.
 * **CAT III Fysisk Sikkerhed:** Kabinettet SKAL støbes i brandhæmmende plast (UL94 V-0 rating). Indvendigt SKAL det mekaniske design indeholde fysiske plastbarrierer (skillevægge), der omslutter 230V net-indgangen og HRC-sikringerne, for at forhindre at plasma eller gnister fra et eventuelt internt overslag kan nå brugeren eller den digitale kontrolzone.[cite: 1]

@@ -118,7 +118,7 @@ ZONE B (Måledomæne — galvanisk flydende)
 | Designator | Komponent | Værdi/Type | Pakke | Krav |
 | :--- | :--- | :--- | :--- | :--- |
 | **U5** | MCU-modul | ESP32-WROOM-32 | Modul | 3,3 V, dual-core |
-| **—** | TFT-display | 5" SPI TFT | Modul | 3,3 V logik, SPI-grænseflade |
+| **—** | TFT-display | 5" 800×480 RA8875 SPI TFT | Modul | 3,3 V logik, SPI-grænseflade, RA8875-controller (TFT_eSPI-kompatibel) |
 | **BZ1** | Piezo-buzzer | 3,3 V aktiv/passiv | — | Drives via transistor eller direkte GPIO (strøm ≤12 mA) |
 | **SW1** | Reset-knap | Momentary | — | Fysisk reset af ESP32 |
 | **R1, R2** | I²C pull-up (primær side) | 10 kΩ | 0603 | Til ISO1541 side 1 |
@@ -134,7 +134,7 @@ ZONE B (Måledomæne — galvanisk flydende)
 | **PIN_RELAY_AC_ROUTE**| GPIO 14 | Output | Via PC817 → relæ |
 | **PIN_RELAY_OHM** | GPIO 27 | Output | Via PC817 → relæ |
 | **PIN_FAULT_INT** | GPIO 25 | Input (ISR) | Fra LM393 via high-speed optokobler |
-| **SPI (TFT)** | Standard VSPI-pins| — | Afhænger af TFT-modul |
+| **SPI (TFT)** | GPIO 4 (MOSI), GPIO 5 (SCLK), GPIO 33 (CS), GPIO 32 (DC), GPIO 23 (RST) | Output | Fastlagt i User_Setup.h — RA8875 SPI. MISO ikke brugt (write-only). |
 
 > **Kritisk note om ISO1541:** Chippen har bidirektionel data (SDA) men unidirektionel clock (SCL). Dette betyder, at målesiden (Zone B) ikke kan udføre clock stretching. ADS1115 kræver ikke clock stretching, så konfigurationen er forenelig. Dette skal dog verificeres i firmware under I²C-transaktioner.
 
@@ -284,8 +284,7 @@ ZONE B (Måledomæne — galvanisk flydende)
 | **MUX-routing** | AIN0 = DC, AIN1 = AC RMS, AIN2/AIN3 = differentielt (Ohm/shunt) |
 | **I²C-adresse**| 0x48 (ADDR til GND) |
 
-> **Bemærk:** ADS1115's maksimale data rate er 860 SPS, men designet bruger 100 SPS for at opnå 50 Hz NMRR via DSP. Dette er en firmware-konfiguration, ikke en hardware-begrænsning. Hardwaren understøtter op til 860 SPS, hvis det senere ønskes.
-
+> **Bemærk:** ADS1115 har ingen 100 SPS-indstilling (kun 8/16/32/64/128/250/475/860 SPS). Designet bruger **475 SPS** i firmwaren, hvilket sammen med metrologi-loopets 10 ms delay giver en reel sample-rate på ~83 Hz. 100-sample-filteret dækker dermed ~1,2 s (ikke præcis 1,0 s), hvilket stadig giver tilstrækkelig 50 Hz NMRR (>60 dB) men afviger fra den oprindelige "præcis 2 perioder"-påstand. Dette er en firmware-konfiguration, ikke en hardware-begrænsning.
 ### 4.6 Blok 10: Strømshunts
 
 **Komponenter:**
@@ -336,7 +335,7 @@ ZONE B (Måledomæne — galvanisk flydende)
 | **20** | GDT1 | Gasafleder | Littelfuse GTCX36-601M-R10 (600 V) | 1 | |
 | **21** | BZ1 | Piezo-buzzer | Passende 3,3 V aktiv | 1 | |
 | **22** | SW1 | Reset-knap | Momentary PCB | 1 | |
-| **23** | — | 5" TFT-display | Ikke valgt | 1 | Åbent punkt — skal vælges med SPI-interface og 3,3 V logik |
+| **23** | — | 5" TFT-display | F.eks. Buydisplay ER-TFTM050-3 (RA8875) | 1 | 800×480, RA8875 SPI-controller, 3,3 V logik. SSD1963-moduler er IKKE kompatible (ingen SPI-driver i TFT_eSPI). |
 | **24** | — | 4 mm sikkerhedsbøsninger| F.eks. Hirschmann KUN 30 | 4 | 19 mm centerafstand |
 
 ### 5.3 Passive komponenter (resumé)
@@ -418,7 +417,7 @@ Følgende punkter er ikke afklaret i denne dokumentation og skal løses, før ha
 | :--- | :--- | :--- | :--- |
 | **1** | ISO1541's UL-rating er 2500 V RMS, ikke 4000 V RMS | Systemets isolationspåstand kan ikke dokumenteres udelukkende via ISO1541 | Afklar om den fysiske 8 mm-barriere alene kan certificeres til 4000 V RMS, eller vælg isolator med højere rating |
 | **2** | "Hov-fejl"-reaktionstid er ikke målt | Sikkerhedspåstande kan ikke verificeres | Mål samlet responstid på prototype |
-| **3** | TFT-display er ikke valgt | Strømforbrug og mekanisk fit ukendt | Vælg konkret modul og verificer 3,3 V-last |
+| **3** | TFT-displayets endelige MPN er ikke fastlagt | Strømforbrug og mekanisk fit ukendt | Vælg konkret RA8875-baseret 800×480 SPI-modul (f.eks. Buydisplay ER-TFTM050-3) og verificer 3,3 V-last |
 | **4** | Transformator-MPN er ikke fastlagt | Mekanisk fit og isolationsafstand ukendt | Vælg transformator med specificeret viklingsadskillelse |
 | **5** | 1000 V DC-området bruger samme MOV som 600 V AC | MOV kan overbelastes ved 600 V AC RMS | Verificer MOV-rating eller differentier beskyttelsen |
 | **6** | LM7805's samlede termiske belastning er ikke analyseret | Overophedning mulig | Beregn samlet effekttab og dimensioner køleplade |
@@ -439,6 +438,7 @@ Følgende punkter er ikke afklaret i denne dokumentation og skal løses, før ha
 | **4½-cifret stabilitet**| Verificere DSP-oversampling | Langtidsmåling (≥1 time) | Stabil visning af 60.000 counts | Ikke udført |
 | **50 Hz NMRR** | Verificere >60 dB | Injicer 50 Hz støj, mål ændring | < specificeret | Ikke udført |
 | **Termisk drift** | Verificere 0,1 %-modstande | Måling ved 23 °C ±2 °C og ved 40 °C | Inden for beregnet drift | Ikke udført |
+| **RA8875 SPI-kommunikation** | Verificere display-driver | Skriv testmønster, mål SPI-frekvens | Stabil drift ved 20 MHz, ingen pixel-fejl | Ikke udført |
 
 ---
 

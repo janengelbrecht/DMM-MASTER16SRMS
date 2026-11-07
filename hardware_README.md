@@ -32,6 +32,7 @@ Fulde krav findes i [`docs/HW-SW-SPEC-V6.0-MASTER.md`](../docs/HW-SW-SPEC-V6.0-M
 - **Guard-rings:** Omkring højimpedansbaner i Blok 4
 - **Termisk design:** Manganin-shunt og regulatorer skal have thermiske vias
 - **Kabinet:** UL94 V-0 brandhæmmende plast med interne barrierer
+- **Display:** 5" 800×480 med RA8875-controller (SPI). SSD1963 er IKKE kompatibel med TFT_eSPI i SPI-mode.
 
 ## Hvordan du kan hjælpe
 

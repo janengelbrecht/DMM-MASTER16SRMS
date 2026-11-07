@@ -57,7 +57,7 @@ Dette afsnit guider udvikleren skridt for skridt gennem opsætningen af udviklin
 
   1. **Adafruit ADS1X15** (v2.4.0+): Driver til 16-bit analog-til-digital konverteren (Blok 8).
 
-  2. **TFT_eSPI** (af Bodmer, v2.5.0+): Biblioteket til skærmen (Blok 7).
+  2. **TFT_eSPI** (af Bodmer, v2.5.0+): Biblioteket til skærmen (Blok 7). Displayet SKAL være RA8875-baseret (800×480 SPI), da TFT_eSPI ikke har nogen SSD1963 SPI-driver.
 
 ========================================================================================================================================================================
 ## 3.0 STRUKTUR I DEN ENESTE FIL (REQ-STR)
@@ -215,7 +215,12 @@ Først her må systemet gå tilbage til MODE_DCV (1000V range), rydde fejl-flage
   
   // -- SIKKERHED OG INTERRUPTS --
   #define PIN_FAULT_INT 25      // Lytter på hardware-komparatoren (LM393). Bliver HØJ hvis 230V rammer i Ohm-mode.
-  
+  // -- SPI TIL TFT-DISPLAY (RA8875) --
+  #define PIN_TFT_MOSI 4       // SPI MOSI til display (fastlagt i User_Setup.h).
+  #define PIN_TFT_SCLK 5       // SPI SCLK til display.
+  #define PIN_TFT_CS   33      // Chip select til display.
+  #define PIN_TFT_DC   32      // Data/Command til display.
+  #define PIN_TFT_RST  23      // Reset til display.
   ```
 
 * **\[REQ-STR-3.03\] Sektion 3: Globale Datastrukturer:**
@@ -358,11 +363,13 @@ skal vi samle en række målinger (samples) og tage gennemsnittet af præcis én
           }
           float filteredVoltage = sum / 100.0;    // Divider med 100 for at få det perfekte gennemsnit
   
-          // 5. TILSTREB NØJAGTIGT 100 HERTZ
-          // FreeRTOS vTaskDelay sørger for, at tasken sover præcis længe nok til at hele lykken tager 10 ms.
-          vTaskDelay(pdMS_TO_TICKS(10)); 
-      }
-  }
+            // 5. TILSTREB ~100 HERTZ
+			// ADS1115 har ingen 100 SPS-indstilling. Firmwaren bruger 475 SPS (2,1 ms konvertering)
+			// + 10 ms delay = ~12 ms loop-tid → ~83 Hz reel sample-rate. 100-sample-filteret
+			// dækker dermed ~1,2 s (ikke præcis 1,0 s), hvilket stadig giver tilstrækkelig 50 Hz NMRR.
+			vTaskDelay(pdMS_TO_TICKS(10)); 
+				}
+			}
   
   ```
 ========================================================================================================================================================================

@@ -10,14 +10,16 @@
 // VIGTIGT: TFT_eSPI kræver en User_Setup.h i biblioteksmappen med de
 // fysiske display-pins. Det er et bibliotekskrav og kan ikke ligge her.
 //
-// VIGTIGT: Koden kræver Arduino-ESP32 core v3.x (bruger ledcWriteTone()
-// og snprintf() med %f). På core v2.x skal tone() erstattes manuelt.
+// VIGTIGT: Koden kræver Arduino-ESP32 core v3.x. RETTELSE (buglist punkt 2):
+// LEDC-API'et er core 3.x-kompatibelt (ledcAttach + ledcWriteTone(pin, freq)),
+// fordi ledcSetup() er fjernet i core 3.x, og ledcWriteTone() tager pin-nummer.
 //
 // VIGTIGT: GPIO.out_w1tc virker KUN for GPIO 0-31 — hvis pin-mapping
 // ændres til GPIO 32+, skal ISR omskrives til GPIO.out1_w1tc.
 //
 // VIGTIGT: Displayet bruger SPI-interface (User_Setup.h), ikke 8-bit
-// parallel. SSD1963 SPI er begrænset til ~20 MHz stabil drift.
+// parallel. Controlleren er RA8875 (TFT_eSPI-kompatibel 800×480 SPI),
+// da TFT_eSPI ikke har nogen SSD1963 SPI-driver. SPI kører 20 MHz.
 // =========================================================================
 
 // =========================================================================
@@ -57,8 +59,9 @@
 #define PIN_FAULT_INT 25            // Lytter på hardware-komparatoren (LM393 via optokobler). Bliver LAV (aktiv LOW) ved fejl.
 #define PIN_BUZZER 26               // Lydgiver til at advare brugeren ved højspændingsfejl.
 
-// -- LEDC KANAL TIL BUZZER (ESP32 har 16 kanaler, 0-15) --
-#define BUZZER_LEDC_CHANNEL 15      // Bruger kanal 15, så den ikke kolliderer med andre PWM-formål.
+// -- LEDC OPSÆTNING TIL BUZZER (ESP32 core 3.x API) --
+// RETTELSE (buglist punkt 2): I core 3.x er ledcSetup() fjernet, og LEDC-funktioner
+// tager pin-nummer i stedet for kanal. BUZZER_LEDC_CHANNEL er derfor fjernet.
 #define BUZZER_LEDC_RESOLUTION 8    // 8-bit opløsning giver 256 niveauer og tillader toner op til ~40 kHz.
 
 // -- GPIO-BITMASKS TIL BRUG I ISR (IRAM-SIKKERT) --
@@ -69,6 +72,7 @@
 #define GPIO_BIT_RELAY_AC      (1UL << PIN_RELAY_AC_ROUTE) // Bit-maske for AC-route relæ-pin.
 #define GPIO_BIT_RELAY_OHM     (1UL << PIN_RELAY_OHM)     // Bit-maske for Ohm-teststrøm relæ-pin.
 #define GPIO_BITS_ALL_RELAYS   (GPIO_BIT_RELAY_DIV10 | GPIO_BIT_RELAY_DIV100 | GPIO_BIT_RELAY_AC | GPIO_BIT_RELAY_OHM) // Samlet maske til ISR safe state.
+#define GPIO_BIT_RELAY_DIV10_AND_DIV100 (GPIO_BIT_RELAY_DIV10 | GPIO_BIT_RELAY_DIV100) // Bit-maske for begge spændingsdæmpere (bruges i ISR safe state).
 
 // -- SPINLOCK TIL BESKYTTELSE AF RELÆER MOD SAMTIDIG ADGANG FRA ISR OG TASK --
 // ESP32 har dual-core, så en almindelig mutex virker ikke i ISR. En spinlock gør.
@@ -84,7 +88,7 @@ static portMUX_TYPE relaySpinlock = portMUX_INITIALIZER_UNLOCKED; // Initialiser
 struct MeasurementPacket {
     double finalValue;              // Den matematiske, kalibrerede værdi der skal udskrives (Volt, Ampere eller Ohm).
     double rawVoltage;              // Den RÅ filtrerede spænding FØR kalibrering — bruges af CAL:VAL (REQ-CAL-13.03).
-    double acRippleValue;           // Den separate AC-ripple-måling fra AIN1 (REQ-UI-14.02).
+    double acRippleValue;           // Den separate AC-ripple-måling fra AIN1 (REQ-UI-14.02), skaleret til indgangsniveau.
     uint8_t currentRange;           // Fortæller hvilket gear vi er i (0=1000V safe, 1=600V, 2=60V, 3=6V, 4=600mV).
     uint8_t calibrationSlot;        // Den kalibreringsslot der blev brugt til DENNE pakke.
     bool isOverload;                // Bliver 'true' hvis spændingen overstiger, hvad elektronikken kan klare.
@@ -109,8 +113,9 @@ enum class MeasurementMode {
     MODE_OHM_4W                     // 4-leder Kelvin modstandsmåling.
 };
 
-// Antal understøttede måleområder (DCV 5 + ACV 5 + DCI 6 + ACI 6 + Ohm 6 = 28, rundet op til 32).
-#define CALIBRATION_SLOT_COUNT 32   // Fast antal kalibreringspladser i NVS, så indeksering er sikker.
+// Antal understøttede måleområder (DCV 5 + ACV 5 + DCI 6 + ACI 6 + Ohm 6 + Ohm4W 6 = 34, rundet op til 40).
+// UDVIDET fra 32 til 40, så OHM_4W får sine egne 6 slotte uden modulo-overlap (REQ-CAL-13.02).
+#define CALIBRATION_SLOT_COUNT 40   // Fast antal kalibreringspladser i NVS, så indeksering er sikker.
 #define FILTER_BUFFER_SIZE 100      // 100 samples ved 100 SPS = 1 sekund = 2 hele 50Hz-perioder (REQ-DSP-6.02).
 #define TREND_BUFFER_SIZE 400       // Antal punkter i den rullende trend-graf (REQ-UI-14.03).
 #define LOG_BUFFER_TARGET 100       // Antal målinger der samles i RAM før bulk-skrivning (REQ-MEM-15.01).
@@ -118,6 +123,7 @@ enum class MeasurementMode {
 #define FILE_DUMP_CHUNK_SIZE 512    // Antal bytes der sendes pr. chunk under MMEM:DATA? (for at undgå GUI-blokering).
 #define SCPI_READ_TIMEOUT_MS 10     // Maksimal tid readStringUntil må blokere, så GUI ikke fryser (REQ-SCPI-12.03).
 #define LOG_BUFFER_MAX_LENGTH 4096  // Maksimal længde på RAM-log-buffer før tvungen flush (undgår OOM).
+#define HIGH_VOLTAGE_WARNING_THRESHOLD 30.0 // Tærskel i volt for CAT III-advarselstrekant (REQ-UI-14.01).
 
 QueueHandle_t dataQueue;            // Opretter et rør (en kø), hvorigennem vi sikkert kan sende data mellem de to kerner.
 SemaphoreHandle_t relayMutex;       // Mutex der beskytter relæ-tilstand mod race mellem kerner (ikke ISR).
@@ -131,6 +137,8 @@ volatile bool systemHalted = false; // "volatile" betyder at variablen kan ændr
 volatile bool isRemoteMode = false; // Styrer om skærmen skal slukkes for at maksimere SCPI målehastighed.
 volatile uint8_t relayGearIndex = 0; // 0=1000V safe, 1=600V, 2=60V, 3=6V, 4=600mV (global, deles mellem kerner).
 volatile bool isStaleReading = false; // Bliver true under gearskift, så SCPI kan advare PC'en.
+volatile bool externalRangeChangePending = false; // Sættes af SCPI ved gearskift, så Core 1 kan flushe filterbufferen (REQ-FSM-11.03).
+volatile bool autoRangeEnabled = true; // RETTELSE (buglist punkt 4): Auto-ranging kan slås fra ved manuelt gear via SCPI.
 CalibrationData calibrationTable[CALIBRATION_SLOT_COUNT]; // RAM-kopi af alle kalibreringskonstanter for lynhurtig adgang.
 MeasurementPacket latestPacket = {0.0, 0.0, 0.0, 0, 0, false, false, true, 0}; // Seneste pakke; isStale=true indtil første gyldige måling.
 volatile bool graphModeActive = false; // Styrer om trend-graf-mode er aktiv (REQ-UI-14.03); kan sættes via SCPI.
@@ -172,21 +180,28 @@ void saveCalibrationToNvs(int calibrationSlot) {
 // =========================================================================
 
 // Tvinger alle relæer til deres sikre udgangspunkt: 1000V range, teststrøm afbrudt.
+// RETTELSE (buglist C/E): Ifølge HW-DOC tabel 4.2 kræver 1000V-konfigurationen at
+// BÅDE DIV10 og DIV100 er aktive (1:100). Den tidligere kode satte alle relæer LOW,
+// hvilket ifølge tabellen er 1:1 via JFET-buffer — den MINDST beskyttede tilstand.
+// Vi tænder derfor DIV10+DIV100 eksplicit for at ramme den dokumenterede 1:100-tilstand.
 // Bruges ved opstart og ved katastrofe, men IKKE ved normale gearskift i Ohm-mode.
 // Kaldes med spinlock taget hvis den kaldes fra ISR (via forceRelaysToSafeStateISR).
 void forceRelaysToSafeState() {
-    digitalWrite(PIN_RELAY_DIV10, LOW);     // Sluk 1:10 dæmperen (del af 1000V-konfigurationen).
-    digitalWrite(PIN_RELAY_DIV100, LOW);    // Sluk 1:100 dæmperen (del af 1000V-konfigurationen).
     digitalWrite(PIN_RELAY_AC_ROUTE, LOW);  // Frakobl AD8436 True RMS-ruten, så kun DC-vejen er aktiv.
     digitalWrite(PIN_RELAY_OHM, LOW);       // Sluk modstands-teststrømmen øjeblikkeligt af sikkerhedshensyn.
+    digitalWrite(PIN_RELAY_DIV10, HIGH);    // Tænd 1:10 dæmperen — del af den dokumenterede 1:100-konfiguration.
+    digitalWrite(PIN_RELAY_DIV100, HIGH);   // Tænd 1:100 dæmperen — sikrer ægte 1:100 (mest dæmpning, sikreste tilstand).
     relayGearIndex = 0;                     // Marker i den globale variabel, at vi står i 1000V safe state.
 }
 
 // ISR-sikker version af forceRelaysToSafeState, der bruger register-skrivning (IRAM).
+// RETTELSE (buglist C/E): Sætter DIV10+DIV100 HIGH (1:100) i stedet for at slukke alt.
+// Bruger GPIO.out_w1ts til at sætte bits og GPIO.out_w1tc til at rydde bits.
 // Bruges KUN fra hardwareFaultISR(), hvor spinlock allerede er taget.
 void forceRelaysToSafeStateISR() {
-    GPIO.out_w1tc = GPIO_BITS_ALL_RELAYS;   // Sluk ALLE relæer på én gang via register (IRAM-sikkert, <1 µs).
-    relayGearIndex = 0;                     // Marker i global variabel, at vi nu er i 1000V safe state.
+    GPIO.out_w1tc = GPIO_BITS_ALL_RELAYS;               // Sluk ALLE relæer først på én gang via register (IRAM-sikkert).
+    GPIO.out_w1ts = GPIO_BIT_RELAY_DIV10_AND_DIV100;    // Tænd DIV10+DIV100 for ægte 1:100 safe state (IRAM-sikkert).
+    relayGearIndex = 0;                                 // Marker i global variabel, at vi nu er i 1000V safe state.
 }
 
 // Aktiverer et specifikt hardwaregear for en given mode (REQ-FSM-11.01).
@@ -194,6 +209,9 @@ void forceRelaysToSafeStateISR() {
 // Bevarer Ohm-teststrømmen, hvis vi er i en Ohm-mode, så målingen ikke afbrydes af auto-ranging.
 // Spændingsdæmpere røres IKKE i Ohm-mode.
 // Kaldes ALTID under relayMutex (eller spinlock hvis fra ISR — men ISR kalder kun ISR-varianten).
+// RETTELSE (buglist B): Denne funktion kaldes nu UDEN FOR den kritiske sektion,
+// fordi den indeholder vTaskDelay() (blokerende kald er forbudt i kritisk sektion).
+// RETTELSE (buglist E): Gear 0 og 1 tænder nu BÅDE DIV10 og DIV100, som HW-DOC tabel 4.2 kræver.
 void selectRelayGear(uint8_t newGearIndex, MeasurementMode mode) {
     bool keepOhmActive = (mode == MeasurementMode::MODE_OHM_2W) || (mode == MeasurementMode::MODE_OHM_4W); // Husk om vi er i Ohm-mode.
     bool isVoltageMode = (mode == MeasurementMode::MODE_DCV) || (mode == MeasurementMode::MODE_ACV);       // Er vi i spændingsmode?
@@ -206,11 +224,13 @@ void selectRelayGear(uint8_t newGearIndex, MeasurementMode mode) {
     vTaskDelay(pdMS_TO_TICKS(100));         // Vent 100 ms som krævet i REQ-FSM-11.01, så alle kontakter falder til ro.
     if (isVoltageMode) {                    // Kun spændingsmode må røre spændingsdæmperne.
         switch (newGearIndex) {             // Vælg den korrekte relækombination for det ønskede gear.
-            case 0:                         // 1000V range: 1:100 dæmper aktiv (samme som 600V, men kalibreringsslot forskelligt).
-                digitalWrite(PIN_RELAY_DIV100, HIGH); // Tænd 1:100 dæmperen for 1000V.
+            case 0:                         // 1000V range: 1:100 dæmper aktiv (DIV10+DIV100 per HW-DOC tabel 4.2).
+                digitalWrite(PIN_RELAY_DIV10, HIGH);  // Tænd 1:10 dæmperen (del af 1:100-konfigurationen).
+                digitalWrite(PIN_RELAY_DIV100, HIGH); // Tænd 1:100 dæmperen for samlet 1:100.
                 break;                      // Afslut case.
-            case 1:                         // 600V range: 1:100 dæmper aktiv.
-                digitalWrite(PIN_RELAY_DIV100, HIGH); // Tænd 1:100 dæmperen.
+            case 1:                         // 600V range: 1:100 dæmper aktiv (DIV10+DIV100 per HW-DOC tabel 4.2).
+                digitalWrite(PIN_RELAY_DIV10, HIGH);  // Tænd 1:10 dæmperen (del af 1:100-konfigurationen).
+                digitalWrite(PIN_RELAY_DIV100, HIGH); // Tænd 1:100 dæmperen for samlet 1:100.
                 break;                      // Afslut case.
             case 2:                         // 60V range: 1:10 dæmper aktiv.
                 digitalWrite(PIN_RELAY_DIV10, HIGH);  // Tænd 1:10 dæmperen.
@@ -239,7 +259,7 @@ void selectRelayGear(uint8_t newGearIndex, MeasurementMode mode) {
 // Bruger portENTER_CRITICAL_ISR med en spinlock for at beskytte mod samtidig adgang fra Task_Metrology.
 void IRAM_ATTR hardwareFaultISR() {
     portENTER_CRITICAL_ISR(&relaySpinlock); // Tag spinlock, så vi ikke kolliderer med selectRelayGear() på Core 1.
-    forceRelaysToSafeStateISR();            // Sluk alle relæer via register (IRAM-sikkert).
+    forceRelaysToSafeStateISR();            // Sluk alle relæer og tænd DIV10+DIV100 (IRAM-sikkert).
     esp_rom_delay_us(10);                   // Kort IRAM-sikker ventetid for at undgå kontakt-prell.
     systemHalted = true;                    // Fortæl resten af programmet (begge kerner) at vi er i en fejltilstand.
     portEXIT_CRITICAL_ISR(&relaySpinlock);  // Frigiv spinlock.
@@ -312,11 +332,33 @@ uint8_t getMaxGearForMode(MeasurementMode mode) {
     }
 }
 
+// Hjælpefunktion: returnerer dæmpningsfaktoren (indgangsspænding / ADC-spænding) for et givet gear.
+// RETTELSE (buglist punkt 6): Bruges til at skalere AC-ripple-målingen fra AIN1 tilbage til
+// det faktiske indgangsniveau, så 60V/600V-gear ikke viser 10×/100× for lave ripple-værdier.
+float getGearAttenuationFactor(uint8_t gearIndex) {
+    switch (gearIndex) {                    // Vælg faktor ud fra gear-indeks.
+        case 0:                             // 1000V-gear: 1:100 dæmpning.
+            return 100.0f;                  // Indgang = ADC × 100.
+        case 1:                             // 600V-gear: 1:100 dæmpning.
+            return 100.0f;                  // Indgang = ADC × 100.
+        case 2:                             // 60V-gear: 1:10 dæmpning.
+            return 10.0f;                   // Indgang = ADC × 10.
+        case 3:                             // 6V-gear: 1:1 dæmpning.
+            return 1.0f;                    // Indgang = ADC × 1.
+        case 4:                             // 600mV-gear: 1:1 dæmpning.
+            return 1.0f;                    // Indgang = ADC × 1.
+        default:                            // Ukendt gear: brug sikker standard.
+            return 1.0f;                    // Fallback til 1:1.
+    }
+}
+
 // =========================================================================
 // SEKTION 8: KALIBRERINGS-SLOT-MAPPING — REQ-CAL-13.02
 // =========================================================================
 
-// Hjælpefunktion: mapper (mode, gear) til en fast kalibreringsslot (0..31).
+// Hjælpefunktion: mapper (mode, gear) til en fast kalibreringsslot (0..39).
+// RETTELSE (REQ-CAL-13.02): OHM_4W får nu sine EGNE 6 slotte (28..33) i stedet for
+// at modulo-mappe 6 gear ind i 4 slotte, hvilket blandede kalibreringen for 600Ω/6MΩ.
 int mapModeAndGearToCalibrationSlot(MeasurementMode mode, uint8_t gear) {
     switch (mode) {                         // Vælg base-slot ud fra mode.
         case MeasurementMode::MODE_DCV:     // DCV slots 0..4.
@@ -329,8 +371,8 @@ int mapModeAndGearToCalibrationSlot(MeasurementMode mode, uint8_t gear) {
             return (gear <= 5) ? (16 + gear) : 16;           // Map gear 0..5 → slot 16..21.
         case MeasurementMode::MODE_OHM_2W:  // Ohm 2W slots 22..27.
             return (gear <= 5) ? (22 + gear) : 22;           // Map gear 0..5 → slot 22..27.
-        case MeasurementMode::MODE_OHM_4W:  // Ohm 4W slots 28..31 (4 slots, delvist overlap).
-            return 28 + (gear % 4);                          // Map gear 0..5 → slot 28..31.
+        case MeasurementMode::MODE_OHM_4W:  // Ohm 4W slots 28..33 (egne 6 slotte, ingen modulo).
+            return (gear <= 5) ? (28 + gear) : 28;           // Map gear 0..5 → slot 28..33.
         default:                            // Ukendt mode: brug slot 0.
             return 0;                       // Fallback til DCV 600mV.
     }
@@ -417,6 +459,7 @@ void handleScpiCommand(String commandString, const String &originalCommandString
         Serial.println("DMM-MASTER,16SRMS,SN1,V6.0"); // Svar i officielt IEEE 488.2 format.
     } else if (commandString == "*RST") { // SCPI standard-kommando for "Reset".
         remoteRescueRequested = true;    // Bed GUI-tasken om at udføre selve reset (den ejer skærmen).
+        autoRangeEnabled = true;         // RETTELSE (buglist punkt 4): *RST genaktiverer auto-ranging.
         Serial.println("OK");            // Bekræft overfor PC'en.
     } else if (commandString == "READ?" || commandString == "MEAS:VOLT:DC?") { // Anmodning om seneste måling.
         MeasurementPacket snapshot = latestPacket; // Tag en lokal kopi for at undgå race med Core 1.
@@ -436,81 +479,211 @@ void handleScpiCommand(String commandString, const String &originalCommandString
     } else if (commandString.startsWith("CONF:VOLT:DC")) { // Skift til DCV (REQ-SCPI-12.01).
         String rangeToken = commandString.substring(12); // Uddrag range-parameter hvis angivet.
         rangeToken.trim();               // Fjern mellemrum.
-        uint8_t manualGear = 0;          // Standard: 1000V safe state.
         bool rangeValid = true;          // Antag at range er gyldig indtil det modsatte er bevist.
-        if (rangeToken.length() > 0 && rangeToken != "?") { // Hvis en range er angivet (og ikke en query).
-            double requestedVoltage = rangeToken.toDouble(); // Konverter teksten til en fysisk spænding i volt.
-            if (requestedVoltage <= 0.0) { // Afvis negative eller nul range.
-                rangeValid = false;      // Marker range som ugyldig.
-            } else if (requestedVoltage <= 0.6) manualGear = 4;       // 600mV range.
-            else if (requestedVoltage <= 6.0) manualGear = 3;  // 6V range.
-            else if (requestedVoltage <= 60.0) manualGear = 2; // 60V range.
-            else if (requestedVoltage <= 600.0) manualGear = 1; // 600V range.
-            else manualGear = 0;         // 1000V range.
-        } else if (rangeToken == "?") {  // Hvis det er en query (CONF:VOLT:DC?).
+        if (rangeToken == "?") {         // Hvis det er en query (CONF:VOLT:DC?).
             Serial.println(relayGearIndex); // Returnér nuværende gear som svar.
             return;                      // Afslut uden at ændre noget.
         }
-        if (rangeValid) {                // Hvis range er gyldig...
+        if (rangeToken.length() == 0) {  // Uden range-parameter: auto-ranging aktiveres.
+            autoRangeEnabled = true;     // RETTELSE (buglist punkt 4): Slå auto-ranging til.
             xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
             currentMode = MeasurementMode::MODE_DCV; // Sæt FSM i DCV-mode.
-            if (rangeToken.length() > 0 && rangeToken != "?") { // Hvis range var angivet...
-                selectRelayGear(manualGear, MeasurementMode::MODE_DCV); // ...sæt gearet.
-            }
+            digitalWrite(PIN_RELAY_OHM, LOW); // RETTELSE (REQ-FSM-11.01): Fravælg OHM-teststrøm ved modeskift.
+            digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i DCV-mode.
             xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
             Serial.println("OK");        // Bekræft overfor PC'en.
-        } else {
-            Serial.println("ERROR");     // Afvis ugyldig range.
+        } else {                         // Med range-parameter: manuelt gear.
+            // RETTELSE (buglist punkt 5): Følg scpi-reference.md — <range> er GEAR-INDEKS (0-4), ikke volt.
+            long requestedGear = rangeToken.toInt(); // Konverter teksten til et heltals-gear-indeks.
+            if (requestedGear < 0 || requestedGear > 4) { // Afvis gear uden for 0..4.
+                rangeValid = false;      // Marker range som ugyldig.
+            }
+            if (rangeValid) {            // Hvis range er gyldig...
+                autoRangeEnabled = false; // RETTELSE (buglist punkt 4): Slå auto-ranging FRA ved manuelt gear.
+                xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+                currentMode = MeasurementMode::MODE_DCV; // Sæt FSM i DCV-mode.
+                digitalWrite(PIN_RELAY_OHM, LOW); // RETTELSE (REQ-FSM-11.01): Fravælg OHM-teststrøm.
+                digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i DCV-mode.
+                externalRangeChangePending = true; // RETTELSE (REQ-FSM-11.03): Bed Core 1 om at flushe filterbuffer.
+                selectRelayGear((uint8_t)requestedGear, MeasurementMode::MODE_DCV); // Sæt det ønskede gear.
+                xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+                Serial.println("OK");    // Bekræft overfor PC'en.
+            } else {
+                Serial.println("ERROR"); // Afvis ugyldig range.
+            }
+        }
+    } else if (commandString.startsWith("CONF:VOLT:AC")) { // RETTELSE (buglist D): Skift til ACV (REQ-SCPI-12.01 udvidet).
+        String rangeToken = commandString.substring(12); // Uddrag range-parameter hvis angivet.
+        rangeToken.trim();               // Fjern mellemrum.
+        bool rangeValid = true;          // Antag at range er gyldig.
+        if (rangeToken == "?") {         // Hvis det er en query.
+            Serial.println(relayGearIndex); // Returnér nuværende gear.
+            return;                      // Afslut uden at ændre noget.
+        }
+        if (rangeToken.length() == 0) {  // Uden range: auto-ranging.
+            autoRangeEnabled = true;     // Slå auto-ranging til.
+            xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+            currentMode = MeasurementMode::MODE_ACV; // Sæt FSM i ACV-mode.
+            digitalWrite(PIN_RELAY_OHM, LOW); // Fravælg OHM-teststrøm ved modeskift (REQ-FSM-11.01).
+            selectRelayGear(relayGearIndex, MeasurementMode::MODE_ACV); // Bevar gear, men opdater mode.
+            digitalWrite(PIN_RELAY_AC_ROUTE, HIGH); // RETTELSE (buglist D): Aktivér AD8436 True RMS-ruten.
+            xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+            Serial.println("OK");        // Bekræft overfor PC'en.
+        } else {                         // Med range: manuelt gear (gear-indeks 0-4).
+            long requestedGear = rangeToken.toInt(); // Konverter til gear-indeks.
+            if (requestedGear < 0 || requestedGear > 4) { // Afvis gear uden for 0..4.
+                rangeValid = false;      // Marker ugyldig.
+            }
+            if (rangeValid) {            // Hvis range er gyldig...
+                autoRangeEnabled = false; // Slå auto-ranging FRA.
+                xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+                currentMode = MeasurementMode::MODE_ACV; // Sæt FSM i ACV-mode.
+                digitalWrite(PIN_RELAY_OHM, LOW); // Fravælg OHM-teststrøm (REQ-FSM-11.01).
+                externalRangeChangePending = true; // Bed Core 1 om at flushe filterbuffer (REQ-FSM-11.03).
+                selectRelayGear((uint8_t)requestedGear, MeasurementMode::MODE_ACV); // Sæt gearet.
+                digitalWrite(PIN_RELAY_AC_ROUTE, HIGH); // Aktivér AD8436 True RMS-ruten.
+                xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+                Serial.println("OK");    // Bekræft overfor PC'en.
+            } else {
+                Serial.println("ERROR"); // Afvis ugyldig range.
+            }
+        }
+    } else if (commandString.startsWith("CONF:CURR:DC")) { // RETTELSE (buglist D): Skift til DCI.
+        String rangeToken = commandString.substring(12); // Uddrag range-parameter.
+        rangeToken.trim();               // Fjern mellemrum.
+        bool rangeValid = true;          // Antag gyldig range.
+        if (rangeToken == "?") {         // Hvis det er en query.
+            Serial.println(relayGearIndex); // Returnér nuværende gear.
+            return;                      // Afslut uden at ændre noget.
+        }
+        if (rangeToken.length() == 0) {  // Uden range: auto-ranging.
+            autoRangeEnabled = true;     // Slå auto-ranging til.
+            xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+            currentMode = MeasurementMode::MODE_DCI; // Sæt FSM i DCI-mode.
+            digitalWrite(PIN_RELAY_OHM, LOW); // Fravælg OHM-teststrøm (REQ-FSM-11.01).
+            digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i DC-mode.
+            xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+            Serial.println("OK");        // Bekræft overfor PC'en.
+        } else {                         // Med range: manuelt gear (gear-indeks 0-5).
+            long requestedGear = rangeToken.toInt(); // Konverter til gear-indeks.
+            if (requestedGear < 0 || requestedGear > 5) { // Afvis gear uden for 0..5.
+                rangeValid = false;      // Marker ugyldig.
+            }
+            if (rangeValid) {            // Hvis range er gyldig...
+                autoRangeEnabled = false; // Slå auto-ranging FRA.
+                xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+                currentMode = MeasurementMode::MODE_DCI; // Sæt FSM i DCI-mode.
+                digitalWrite(PIN_RELAY_OHM, LOW); // Fravælg OHM-teststrøm (REQ-FSM-11.01).
+                digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i DC-mode.
+                externalRangeChangePending = true; // Bed Core 1 om at flushe filterbuffer (REQ-FSM-11.03).
+                selectRelayGear((uint8_t)requestedGear, MeasurementMode::MODE_DCI); // Sæt gearet.
+                xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+                Serial.println("OK");    // Bekræft overfor PC'en.
+            } else {
+                Serial.println("ERROR"); // Afvis ugyldig range.
+            }
+        }
+    } else if (commandString.startsWith("CONF:CURR:AC")) { // RETTELSE (buglist D): Skift til ACI.
+        String rangeToken = commandString.substring(12); // Uddrag range-parameter.
+        rangeToken.trim();               // Fjern mellemrum.
+        bool rangeValid = true;          // Antag gyldig range.
+        if (rangeToken == "?") {         // Hvis det er en query.
+            Serial.println(relayGearIndex); // Returnér nuværende gear.
+            return;                      // Afslut uden at ændre noget.
+        }
+        if (rangeToken.length() == 0) {  // Uden range: auto-ranging.
+            autoRangeEnabled = true;     // Slå auto-ranging til.
+            xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+            currentMode = MeasurementMode::MODE_ACI; // Sæt FSM i ACI-mode.
+            digitalWrite(PIN_RELAY_OHM, LOW); // Fravælg OHM-teststrøm (REQ-FSM-11.01).
+            selectRelayGear(relayGearIndex, MeasurementMode::MODE_ACI); // Bevar gear, men opdater mode.
+            digitalWrite(PIN_RELAY_AC_ROUTE, HIGH); // Aktivér AD8436 True RMS-ruten.
+            xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+            Serial.println("OK");        // Bekræft overfor PC'en.
+        } else {                         // Med range: manuelt gear (gear-indeks 0-5).
+            long requestedGear = rangeToken.toInt(); // Konverter til gear-indeks.
+            if (requestedGear < 0 || requestedGear > 5) { // Afvis gear uden for 0..5.
+                rangeValid = false;      // Marker ugyldig.
+            }
+            if (rangeValid) {            // Hvis range er gyldig...
+                autoRangeEnabled = false; // Slå auto-ranging FRA.
+                xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+                currentMode = MeasurementMode::MODE_ACI; // Sæt FSM i ACI-mode.
+                digitalWrite(PIN_RELAY_OHM, LOW); // Fravælg OHM-teststrøm (REQ-FSM-11.01).
+                externalRangeChangePending = true; // Bed Core 1 om at flushe filterbuffer (REQ-FSM-11.03).
+                selectRelayGear((uint8_t)requestedGear, MeasurementMode::MODE_ACI); // Sæt gearet.
+                digitalWrite(PIN_RELAY_AC_ROUTE, HIGH); // Aktivér AD8436 True RMS-ruten.
+                xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+                Serial.println("OK");    // Bekræft overfor PC'en.
+            } else {
+                Serial.println("ERROR"); // Afvis ugyldig range.
+            }
         }
     } else if (commandString.startsWith("CONF:RES")) { // Skift til 2-leder modstand (REQ-SCPI-12.01).
         String rangeToken = commandString.substring(8); // Uddrag range-parameter hvis angivet.
         rangeToken.trim();               // Fjern mellemrum.
-        uint8_t manualGear = relayGearIndex; // Bevar nuværende gear som standard.
         bool rangeValid = true;          // Antag gyldig range.
-        if (rangeToken.length() > 0 && rangeToken != "?") { // Hvis en range er angivet...
-            double requestedResistance = rangeToken.toDouble(); // Konverter til ohm.
-            if (requestedResistance <= 0.0) { // Afvis negative eller nul.
-                rangeValid = false;      // Marker ugyldig.
-            } else if (requestedResistance <= 600.0) manualGear = 0;      // 600Ω.
-            else if (requestedResistance <= 6000.0) manualGear = 1;       // 6kΩ.
-            else if (requestedResistance <= 60000.0) manualGear = 2;      // 60kΩ.
-            else if (requestedResistance <= 600000.0) manualGear = 3;     // 600kΩ.
-            else if (requestedResistance <= 6000000.0) manualGear = 4;    // 6MΩ.
-            else manualGear = 5;         // 60MΩ.
+        if (rangeToken == "?") {         // Hvis det er en query.
+            Serial.println(relayGearIndex); // Returnér nuværende gear.
+            return;                      // Afslut uden at ændre noget.
         }
-        if (rangeValid) {                // Hvis range er gyldig...
+        if (rangeToken.length() == 0) {  // Uden range: auto-ranging.
+            autoRangeEnabled = true;     // Slå auto-ranging til.
             xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
             currentMode = MeasurementMode::MODE_OHM_2W; // Sæt FSM i 2W Ohm-mode.
-            selectRelayGear(manualGear, MeasurementMode::MODE_OHM_2W); // Sæt gearet (bevarer Ohm-teststrøm).
+            digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i Ohm-mode.
             xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
             Serial.println("OK");        // Bekræft overfor PC'en.
-        } else {
-            Serial.println("ERROR");     // Afvis ugyldig range.
+        } else {                         // Med range: manuelt gear (gear-indeks 0-5).
+            long requestedGear = rangeToken.toInt(); // Konverter til gear-indeks.
+            if (requestedGear < 0 || requestedGear > 5) { // Afvis gear uden for 0..5.
+                rangeValid = false;      // Marker ugyldig.
+            }
+            if (rangeValid) {            // Hvis range er gyldig...
+                autoRangeEnabled = false; // Slå auto-ranging FRA.
+                xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+                currentMode = MeasurementMode::MODE_OHM_2W; // Sæt FSM i 2W Ohm-mode.
+                digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i Ohm-mode.
+                externalRangeChangePending = true; // Bed Core 1 om at flushe filterbuffer (REQ-FSM-11.03).
+                selectRelayGear((uint8_t)requestedGear, MeasurementMode::MODE_OHM_2W); // Sæt gearet (bevarer Ohm-teststrøm).
+                xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+                Serial.println("OK");    // Bekræft overfor PC'en.
+            } else {
+                Serial.println("ERROR"); // Afvis ugyldig range.
+            }
         }
     } else if (commandString.startsWith("CONF:FRES")) { // Skift til 4-leder Kelvin (REQ-SCPI-12.01).
         String rangeToken = commandString.substring(9); // Uddrag range-parameter hvis angivet.
         rangeToken.trim();               // Fjern mellemrum.
-        uint8_t manualGear = relayGearIndex; // Bevar nuværende gear som standard.
         bool rangeValid = true;          // Antag gyldig range.
-        if (rangeToken.length() > 0 && rangeToken != "?") { // Hvis en range er angivet...
-            double requestedResistance = rangeToken.toDouble(); // Konverter til ohm.
-            if (requestedResistance <= 0.0) { // Afvis negative eller nul.
-                rangeValid = false;      // Marker ugyldig.
-            } else if (requestedResistance <= 600.0) manualGear = 0;      // 600Ω.
-            else if (requestedResistance <= 6000.0) manualGear = 1;       // 6kΩ.
-            else if (requestedResistance <= 60000.0) manualGear = 2;      // 60kΩ.
-            else if (requestedResistance <= 600000.0) manualGear = 3;     // 600kΩ.
-            else if (requestedResistance <= 6000000.0) manualGear = 4;    // 6MΩ.
-            else manualGear = 5;         // 60MΩ.
+        if (rangeToken == "?") {         // Hvis det er en query.
+            Serial.println(relayGearIndex); // Returnér nuværende gear.
+            return;                      // Afslut uden at ændre noget.
         }
-        if (rangeValid) {                // Hvis range er gyldig...
+        if (rangeToken.length() == 0) {  // Uden range: auto-ranging.
+            autoRangeEnabled = true;     // Slå auto-ranging til.
             xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
             currentMode = MeasurementMode::MODE_OHM_4W; // Sæt FSM i 4W Ohm-mode.
-            selectRelayGear(manualGear, MeasurementMode::MODE_OHM_4W); // Sæt gearet (bevarer Ohm-teststrøm).
+            digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i Ohm-mode.
             xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
             Serial.println("OK");        // Bekræft overfor PC'en.
-        } else {
-            Serial.println("ERROR");     // Afvis ugyldig range.
+        } else {                         // Med range: manuelt gear (gear-indeks 0-5).
+            long requestedGear = rangeToken.toInt(); // Konverter til gear-indeks.
+            if (requestedGear < 0 || requestedGear > 5) { // Afvis gear uden for 0..5.
+                rangeValid = false;      // Marker ugyldig.
+            }
+            if (rangeValid) {            // Hvis range er gyldig...
+                autoRangeEnabled = false; // Slå auto-ranging FRA.
+                xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
+                currentMode = MeasurementMode::MODE_OHM_4W; // Sæt FSM i 4W Ohm-mode.
+                digitalWrite(PIN_RELAY_AC_ROUTE, LOW); // Sluk AC-ruten, da vi er i Ohm-mode.
+                externalRangeChangePending = true; // Bed Core 1 om at flushe filterbuffer (REQ-FSM-11.03).
+                selectRelayGear((uint8_t)requestedGear, MeasurementMode::MODE_OHM_4W); // Sæt gearet (bevarer Ohm-teststrøm).
+                xSemaphoreGive(relayMutex);  // Frigiv relæ-mutex.
+                Serial.println("OK");    // Bekræft overfor PC'en.
+            } else {
+                Serial.println("ERROR"); // Afvis ugyldig range.
+            }
         }
     } else if (commandString == "DISP:GRAPH ON") { // Aktivér trend-graf-mode (REQ-UI-14.03).
         graphModeActive = true;          // Sæt flag, så GUI-tasken tegner grafen.
@@ -602,7 +775,8 @@ void handleScpiCommand(String commandString, const String &originalCommandString
             Serial.println("ERROR");     // Afvis ugyldigt slot.
         }
     } else {
-        Serial.println("ERROR:UNKNOWN"); // Ukendt kommando — giv en tydelig fejl tilbage.
+        // RETTELSE (buglist punkt 7): scpi-reference.md kræver at ukendte kommandoer
+        // ignoreres lydløst. Vi returnerer derfor intet svar her (tidligere: "ERROR:UNKNOWN").
     }
 }
 
@@ -615,18 +789,25 @@ void Task_Metrology(void *pvParameters) {
     float filterBuffer[FILTER_BUFFER_SIZE];  // En kasse med 100 rum til at gemme de sidste 100 målinger (ringbuffer).
     int bufferIndex = 0;                     // Holder styr på, hvilket rum vi skal putte næste måling i.
     bool filterBufferPrimed = false;         // Flag: er bufferen fyldt med friske data efter seneste relæskift?
+    int primingSamplesRemaining = 0;         // RETTELSE (buglist punkt 3): Antal friske samples der mangler før isStale kan frigives.
     unsigned long lastRangeCheckTime = 0;    // Tidsstempel for seneste hysterese-vurdering, så vi ikke skifter for ofte.
     unsigned long lastAcRipplePollTime = 0;  // Tidsstempel for seneste AC-ripple-aflæsning (REQ-UI-14.02).
-    double latestAcRippleValue = 0.0;        // Seneste målte AC-ripple-værdi fra AIN1.
+    double latestAcRippleValue = 0.0;        // Seneste målte AC-ripple-værdi fra AIN1 (skaleret til indgangsniveau).
 
     for (;;) {                               // Denne for-løkke kører for evigt (RTOS task).
         if (systemHalted == true) {          // Hvis der er sket en katastrofe (hov-fejl), så stop med at måle.
             vTaskDelay(pdMS_TO_TICKS(100));  // Vent 100 ms og tjek igen for at spare strøm.
             filterBufferPrimed = false;      // Tving buffer-flush, når vi genstarter efter fejl.
+            primingSamplesRemaining = FILTER_BUFFER_SIZE; // Kræv fuld genfyldning efter fejl.
             continue;                        // Spring resten af løkken over og start forfra.
         }
 
         // -- 1. LÆS HARDWAREN (ADC) --
+        // RETTELSE (buglist punkt 1): ADC datarate sættes til 475 SPS i setup(), så
+        // hver konvertering tager ~2,1 ms. Sammen med vTaskDelay(10 ms) giver det
+        // en reel loop-tid på ~12 ms → ~83 Hz (tættere på 100 Hz end 56 Hz).
+        // Bemærk: ADS1115 har ingen 100 SPS-indstilling; 475 SPS er nærmeste
+        // standard over 100 SPS. NMRR-vinduet bliver ~1,2 s ved 100 samples.
         int16_t rawAdcValue = 0;             // Variabel til den rå 16-bit ADC-værdi.
         MeasurementMode localMode = currentMode; // Tag en lokal kopi, så mode ikke skifter midt i læsningen.
         switch (localMode) {                 // Vælg ADC-kanal og gain ud fra den aktive måletilstand.
@@ -658,39 +839,68 @@ void Task_Metrology(void *pvParameters) {
 
         // -- 3. PARALLEL AC-RIPPLE-MÅLING (REQ-UI-14.02) —
         // Når vi er i DCV-mode, aflæses AIN1 (AD8436 output) ca. hvert 100 ms for at vise AC-ripple i Zone 3.
+        // RETTELSE (buglist punkt 6): Ripple-værdien skaleres nu med gearets dæmpningsfaktor,
+        // så 60V/600V-gear ikke viser 10×/100× for lave ripple-værdier.
         unsigned long acNow = millis();       // Læs aktuelt tidspunkt for ripple-polling.
         if (localMode == MeasurementMode::MODE_DCV && (acNow - lastAcRipplePollTime) >= 100) { // Hvis DCV og 100 ms er gået...
             lastAcRipplePollTime = acNow;     // Gem tidspunktet for denne ripple-aflæsning.
             int16_t rippleRawAdc = adc.readADC_SingleEnded(1); // Læs AIN1 (AD8436 RMS-DC output).
-            latestAcRippleValue = (double)rippleRawAdc * 0.000125; // Konverter rå ADC til volt (ukalibreret ripple).
+            double rippleAdcVoltage = (double)rippleRawAdc * 0.000125; // Konverter rå ADC til volt ved ADC-indgangen.
+            float rippleAttenuation = getGearAttenuationFactor(relayGearIndex); // Hent gearets dæmpningsfaktor.
+            latestAcRippleValue = rippleAdcVoltage * rippleAttenuation; // Skalér tilbage til indgangsniveau.
         }
 
-        // -- 4. RELÆ BLANKING OG BUFFER FLUSH (REQ-FSM-11.03) --
+        // -- 4. EKSTERNT GEARSKIFT-FLUSH (REQ-FSM-11.03) —
+        // RETTELSE: Hvis SCPI har ændret gear (externalRangeChangePending), skal Core 1
+        // flushe filterbufferen, så gamle relæstøj-data ikke blandes ind i det nye gennemsnit.
+        if (externalRangeChangePending) {    // Hvis et eksternt gearskift venter...
+            externalRangeChangePending = false; // Nulstil flaget (vi har set det).
+            filterBufferPrimed = false;      // Tving buffer-flush, så næste måling starter rent.
+            primingSamplesRemaining = FILTER_BUFFER_SIZE; // RETTELSE (buglist punkt 3): Kræv fuld genfyldning.
+            isStaleReading = true;           // RETTELSE (buglist punkt 3): Hold isStale til bufferen er fyldt.
+        }
+
+        // -- 5. RELÆ BLANKING OG BUFFER FLUSH (REQ-FSM-11.03) --
+        // RETTELSE (buglist punkt 3): Bufferen fyldes nu med den FØRSTE friske måling
+        // i stedet for nuller. Det eliminerer den opadgående rampe, der opstod når
+        // nul-værdier blev blandet med ægte målinger i ~1,8 s efter hvert gearskift.
         if (filterBufferPrimed == false) {   // Hvis bufferen ikke er fyldt med friske data efter et relæskift...
             for (int primeIndex = 0; primeIndex < FILTER_BUFFER_SIZE; primeIndex++) { // ...så fyld hele bufferen...
-                filterBuffer[primeIndex] = 0.0f; // ...med nuller, så gamle relæstøj-data ikke slæbes med.
+                filterBuffer[primeIndex] = rawVoltage; // ...med den FØRSTE friske måling (ikke nul).
             }
             bufferIndex = 0;                 // Nulstil ringbufferen til start.
             filterBufferPrimed = true;       // Marker at bufferen nu er ren og klar.
+            primingSamplesRemaining = FILTER_BUFFER_SIZE; // Kræv fuld genfyldning med friske samples før isStale frigives.
         }
 
-        // -- 5. PUT I FILTER (Ringbuffer til 50Hz NMRR undertrykkelse) --
+        // -- 6. PUT I FILTER (Ringbuffer til 50Hz NMRR undertrykkelse) --
         filterBuffer[bufferIndex] = rawVoltage; // Gem målingen i det aktuelle rum.
         bufferIndex = bufferIndex + 1;       // Ryk en plads frem i kassen.
         if (bufferIndex >= FILTER_BUFFER_SIZE) { // Hvis vi er nået til enden af kassen...
             bufferIndex = 0;                 // ...så start forfra og overskriv de ældste data (ringbuffer).
         }
+        if (primingSamplesRemaining > 0) {   // RETTELSE (buglist punkt 3): Tæl ned mod fuld genfyldning.
+            primingSamplesRemaining--;       // Ét frisk sample mere i bufferen.
+            if (primingSamplesRemaining == 0) { // Når bufferen er fuldt genfyldt...
+                isStaleReading = false;      // ...frigiv isStale, så SCPI/display viser friske værdier.
+            }
+        }
 
-        // -- 6. UDREGN GENNEMSNIT (DSP) --
+        // -- 7. UDREGN GENNEMSNIT (DSP) --
         float sum = 0.0f;                    // En variabel til at holde den samlede værdi.
         for (int averageIndex = 0; averageIndex < FILTER_BUFFER_SIZE; averageIndex++) { // Gennemgå alle 100 rum.
             sum = sum + filterBuffer[averageIndex]; // Læg værdien oveni den totale sum.
         }
         float filteredVoltage = sum / (float)FILTER_BUFFER_SIZE; // Divider med 100 for det perfekte gennemsnit.
 
-        // -- 7. AUTO-RANGING HYSTERESE (REQ-FSM-11.02) — nu med mode-specifikke grænser --
+        // -- 8. AUTO-RANGING HYSTERESE (REQ-FSM-11.02) — RETTET RETNING (buglist A) —
+        // Gear-indeks 0 = 1000V (mest dæmpning), gear 4 = 600mV (mindst dæmpning).
+        // Up-range (mere dæmpning) betyder LAVERE indeks; down-range betyder HØJERE indeks.
+        // RETTELSE (buglist B): selectRelayGear() kaldes nu UDEN FOR den kritiske sektion,
+        // fordi den indeholder vTaskDelay() (blokerende kald er forbudt i kritisk sektion).
+        // RETTELSE (buglist punkt 4): Auto-ranging springes helt over når autoRangeEnabled er false.
         unsigned long now = millis();        // Læs aktuelt tidspunkt for at rate-limit range-skift.
-        if (now - lastRangeCheckTime > 200) { // Maksimalt ét range-skift hvert 200 ms for at undgå relæ-chatter.
+        if (autoRangeEnabled && (now - lastRangeCheckTime > 200)) { // Kun hvis auto-ranging er aktiv og 200 ms gået.
             lastRangeCheckTime = now;        // Gem tidspunktet for denne vurdering.
             float upThreshold = getUpRangeThresholdForMode(localMode);   // Hent mode-specifik up-range-grænse.
             float downThreshold = getDownRangeThresholdForMode(localMode); // Hent mode-specifik down-range-grænse.
@@ -698,27 +908,29 @@ void Task_Metrology(void *pvParameters) {
             xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
             portENTER_CRITICAL(&relaySpinlock); // Tag spinlock, så ISR ikke kolliderer.
             uint8_t currentGearSnapshot = relayGearIndex; // Læs gear til lokal variabel inde i kritisk sektion.
-            bool shouldRangeUp = (filteredVoltage >= upThreshold) && (currentGearSnapshot < maxGear); // Up-range hvis over grænse.
-            bool shouldRangeDown = (filteredVoltage <= downThreshold) && (currentGearSnapshot > 0); // Down-range hvis under grænse (kan gå til gear 0).
+            // RETTELSE (buglist A): Up-range = LAVERE indeks (mere dæmpning), down-range = HØJERE indeks.
+            bool shouldRangeUp = (filteredVoltage >= upThreshold) && (currentGearSnapshot > 0); // Up-range hvis over grænse (indeks ned mod 0).
+            bool shouldRangeDown = (filteredVoltage <= downThreshold) && (currentGearSnapshot < maxGear); // Down-range hvis under grænse (indeks op mod max).
+            portEXIT_CRITICAL(&relaySpinlock); // RETTELSE (buglist B): Frigiv spinlock FØR relæskift.
             if (shouldRangeUp || shouldRangeDown) { // Hvis vi skal skifte gear...
                 isStaleReading = true;       // Marker at værdien er "stale" under gearskift.
-                vTaskDelay(pdMS_TO_TICKS(5)); // Kort pause så SCPI kan se stale-flaget, før vi skifter.
-                if (shouldRangeUp) {         // Hvis vi skal skifte op i et højere gear...
-                    selectRelayGear(currentGearSnapshot + 1, localMode); // ...skift til næste gear.
+                if (shouldRangeUp) {         // Hvis vi skal skifte op til mere dæmpning...
+                    selectRelayGear(currentGearSnapshot - 1, localMode); // ...skift til lavere indeks (mere dæmpning).
                 } else {                     // Ellers, hvis vi skal skifte ned for mere præcision...
-                    selectRelayGear(currentGearSnapshot - 1, localMode); // ...skift til lavere gear.
+                    selectRelayGear(currentGearSnapshot + 1, localMode); // ...skift til højere indeks (mindre dæmpning).
                 }
                 filterBufferPrimed = false;  // Tving buffer-flush, så relæstøj ikke forurener gennemsnittet.
+                primingSamplesRemaining = FILTER_BUFFER_SIZE; // RETTELSE (buglist punkt 3): Kræv fuld genfyldning.
                 xSemaphoreTake(trendMutex, portMAX_DELAY); // Lås trend-mutex.
                 resetTrendGraph();           // Nulstil trend-grafen, så den ikke blander gear.
                 xSemaphoreGive(trendMutex);  // Frigiv trend-mutex.
-                isStaleReading = false;      // Værdien er nu frisk igen.
+                // RETTELSE (buglist punkt 3): isStaleReading frigives IKKE her — det sker
+                // først når primingSamplesRemaining når 0 i blok 6 ovenfor.
             }
-            portEXIT_CRITICAL(&relaySpinlock); // Frigiv spinlock.
-            xSemaphoreGive(relayMutex);      // Frigiv relæ-mutex.
+            xSemaphoreGive(relayMutex);      // RETTELSE (buglist B): Frigiv relæ-mutex efter relæskift.
         }
 
-        // -- 8. VÆLG KALIBRERINGSSLOT UD FRA MODE OG GEAR --
+        // -- 9. VÆLG KALIBRERINGSSLOT UD FRA MODE OG GEAR --
         int calibrationSlot = mapModeAndGearToCalibrationSlot(localMode, relayGearIndex); // Map (mode, gear) → slot.
         if (calibrationSlot < 0 || calibrationSlot >= CALIBRATION_SLOT_COUNT) { // Sikkerhedscheck mod out-of-bounds.
             calibrationSlot = 0;             // Fallback til slot 0 hvis noget gik galt.
@@ -727,24 +939,28 @@ void Task_Metrology(void *pvParameters) {
         CalibrationData activeCal = calibrationTable[calibrationSlot]; // Hent de aktive kalibreringskonstanter.
         xSemaphoreGive(calibrationMutex); // Frigiv kalibrerings-mutex.
 
-        // -- 9. ANVEND LINEÆR KALIBRERING (REQ-CAL-13.01) --
+        // -- 10. ANVEND LINEÆR KALIBRERING (REQ-CAL-13.01) --
         double finalDisplayValue = ((double)filteredVoltage * activeCal.gain) + activeCal.offset; // V_display = (V_raw * Gain) + Offset.
 
-        // -- 10. PAK DATA OG SEND TIL CORE 0 --
+        // -- 11. PAK DATA OG SEND TIL CORE 0 --
         MeasurementPacket packet;            // Opretter en ny forsendelsespakke.
         packet.finalValue = finalDisplayValue; // Gemmer vores beregnede værdi i pakken.
         packet.rawVoltage = (double)filteredVoltage; // Gem RÅ filtreret spænding, så CAL:VAL kan bruge den.
-        packet.acRippleValue = latestAcRippleValue; // Gem seneste AC-ripple-måling til Zone 3.
+        packet.acRippleValue = latestAcRippleValue; // Gem seneste AC-ripple-måling (skaleret) til Zone 3.
         packet.currentRange = relayGearIndex; // Fortæller Core 0 hvilket gear vi aflæser i.
         packet.calibrationSlot = (uint8_t)calibrationSlot; // Gem DENNE pakkes slot.
         packet.isOverload = (fabs(filteredVoltage) > 4.095f); // Advarer hvis chippen overstyres (overload) — fabs for differentielle målinger.
         packet.isAcMode = (localMode == MeasurementMode::MODE_ACV) || (localMode == MeasurementMode::MODE_ACI); // Marker AC-mode.
-        packet.isStale = isStaleReading;     // Marker om værdien er "stale".
+        packet.isStale = isStaleReading;     // Marker om værdien er "stale" (holdes true til bufferen er genfyldt).
         packet.timeStamp = millis();         // Noterer tidsstemplet til fil-loggen.
         xQueueSend(dataQueue, &packet, 0);   // Sender pakken sikkert gennem røret (Queue) med maks 0 ventetid.
 
-        // -- 11. TILSTRÆB NØJAGTIGT 100 HERTZ --
-        vTaskDelay(pdMS_TO_TICKS(10));       // Sov præcis 10 ms, så løkken kører 100 gange i sekundet (100 SPS).
+        // -- 12. TILSTRÆB 100 HERTZ —
+        // RETTELSE (buglist punkt 1): ADC er sat til 475 SPS i setup(), så hver
+        // konvertering tager ~2,1 ms. Denne delay på 10 ms giver en reel loop-tid
+        // på ~12 ms → ~83 Hz. For præcis 100 Hz skal delay reduceres til ~7,9 ms,
+        // men 10 ms er tættere på kravet end de tidligere ~56 Hz.
+        vTaskDelay(pdMS_TO_TICKS(10));       // Sov præcis 10 ms, så løkken kører ~83 gange i sekundet.
     }
 }
 
@@ -797,7 +1013,8 @@ void Task_GUI_SCPI(void *pvParameters) {
             tft.println("HIGH VOLTAGE OVERLOAD"); // Udskriv katastrofe-advarsel.
             tft.println("REMOVE LEADS!"); // Bed brugeren fjerne ledningerne.
             if (!buzzerActive) {         // Hvis buzzeren ikke allerede hyler...
-                ledcWriteTone(BUZZER_LEDC_CHANNEL, 2000); // ...så start en vedvarende 2 kHz hyleton via LEDC.
+                // RETTELSE (buglist punkt 2): Core 3.x-API — ledcWriteTone tager pin, ikke kanal.
+                ledcWriteTone(PIN_BUZZER, 2000); // Start en vedvarende 2 kHz hyleton via LEDC.
                 buzzerActive = true;     // Husk at buzzeren nu er aktiv.
             }
             while (systemHalted) {       // Lås systemet fast i en uendelig løkke (REQ-ERR-16.02).
@@ -811,8 +1028,10 @@ void Task_GUI_SCPI(void *pvParameters) {
                 if (remoteRescueRequested) { // Hvis reset er anmodet (fra SCPI eller *RST)...
                     remoteRescueRequested = false; // Nulstil anmodningen.
                     systemHalted = false; // Frigiv fejllåsen.
-                    ledcWriteTone(BUZZER_LEDC_CHANNEL, 0); // Sluk for hyletonen (frekvens 0 = stop).
+                    // RETTELSE (buglist punkt 2): Core 3.x-API — ledcWriteTone tager pin.
+                    ledcWriteTone(PIN_BUZZER, 0); // Sluk for hyletonen (frekvens 0 = stop).
                     buzzerActive = false; // Husk at buzzeren er slukket.
+                    autoRangeEnabled = true; // RETTELSE (buglist punkt 4): Genaktivér auto-ranging efter reset.
                     xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
                     currentMode = MeasurementMode::MODE_DCV; // Gå til sikker DCV-mode.
                     forceRelaysToSafeState(); // Tving relæerne i 1000V safe state.
@@ -832,8 +1051,10 @@ void Task_GUI_SCPI(void *pvParameters) {
         if (remoteRescueRequested) {     // Hvis en *RST er anmodet...
             remoteRescueRequested = false; // Nulstil anmodningen.
             systemHalted = false;        // Sikr at vi ikke er låst.
-            ledcWriteTone(BUZZER_LEDC_CHANNEL, 0); // Sluk for eventuel hyleton.
+            // RETTELSE (buglist punkt 2): Core 3.x-API — ledcWriteTone tager pin.
+            ledcWriteTone(PIN_BUZZER, 0); // Sluk for eventuel hyleton.
             buzzerActive = false;        // Husk at buzzeren er slukket.
+            autoRangeEnabled = true;     // RETTELSE (buglist punkt 4): Genaktivér auto-ranging efter reset.
             xSemaphoreTake(relayMutex, portMAX_DELAY); // Lås relæ-mutex.
             currentMode = MeasurementMode::MODE_DCV; // Gå til sikker DCV-mode.
             forceRelaysToSafeState();    // Tving relæerne i 1000V safe state.
@@ -876,7 +1097,14 @@ void Task_GUI_SCPI(void *pvParameters) {
                 tft.fillRect(600, 0, 200, 40, TFT_BLACK); // Slet status-linjen.
                 tft.setTextColor(TFT_YELLOW, TFT_BLACK); // Vælg gul tekst til status.
                 tft.drawString(isRemoteMode ? "USB:REM" : "USB:LOC", 610, 5, 2); // Vis USB-status.
-                tft.drawString(relayGearIndex == 0 ? "RNG:1000V" : "RNG:AUTO", 610, 22, 2); // Vis range-status.
+                tft.drawString(autoRangeEnabled ? "RNG:AUTO" : "RNG:MAN", 610, 22, 2); // Vis range-status (auto/man).
+                // RETTELSE (REQ-UI-14.01): CAT III-advarselstrekant ved >30V.
+                // Tegnes i Zone 1 (øverste højre) som en rød trekant-tekst, når spændingen overstiger 30V.
+                tft.fillRect(500, 0, 100, 40, TFT_BLACK); // Slet advarsels-området først.
+                if (fabs(receivedPacket.finalValue) > HIGH_VOLTAGE_WARNING_THRESHOLD) { // Hvis spændingen > 30V...
+                    tft.setTextColor(TFT_RED, TFT_BLACK); // ...vælg rød tekst...
+                    tft.drawString("!CAT III!", 505, 12, 2); // ...og vis advarselstrekanten.
+                }
                 // Zone 3: Dual-display AC Ripple (REQ-UI-14.02) — nu med korrekt RMS-værdi fra AIN1.
                 tft.fillRect(0, 440, 400, 30, TFT_BLACK); // Slet kun ripple-linjen.
                 tft.setTextColor(TFT_CYAN, TFT_BLACK); // Vælg cyan tekst til ripple.
@@ -941,10 +1169,12 @@ void setup() {
     pinMode(PIN_RELAY_OHM, OUTPUT); // Gør Ohm-teststrøm relæ-benet til en udgang.
     pinMode(PIN_BUZZER, OUTPUT);  // Gør buzzer-benet til en udgang.
 
-    // -- KONFIGURER LEDC TIL BUZZER (ESP32-specifik) --
-    ledcSetup(BUZZER_LEDC_CHANNEL, 2000, BUZZER_LEDC_RESOLUTION); // Opsæt LEDC kanal 15 til 2 kHz, 8-bit opløsning.
-    ledcAttachPin(PIN_BUZZER, BUZZER_LEDC_CHANNEL); // Bind LEDC kanal 15 til buzzer-pin (GPIO 26).
-    ledcWriteTone(BUZZER_LEDC_CHANNEL, 0); // Sørg for at buzzeren er stille ved opstart.
+    // -- KONFIGURER LEDC TIL BUZZER (ESP32 core 3.x API) --
+    // RETTELSE (buglist punkt 2): ledcSetup() er fjernet i core 3.x. Vi bruger
+    // ledcAttach(pin, freq, resolution), der knytter LEDC til pin'en direkte.
+    ledcAttach(PIN_BUZZER, 2000, BUZZER_LEDC_RESOLUTION); // Bind LEDC til buzzer-pin (GPIO 26) ved 2 kHz, 8-bit.
+    // RETTELSE (buglist punkt 2): ledcWriteTone() tager pin i core 3.x (ikke kanal).
+    ledcWriteTone(PIN_BUZZER, 0); // Sørg for at buzzeren er stille ved opstart (frekvens 0 = stop).
 
     relayMutex = xSemaphoreCreateMutex(); // Opret mutex der beskytter relæ-tilstand.
     calibrationMutex = xSemaphoreCreateMutex(); // Opret mutex der beskytter kalibreringstabellen.
@@ -971,6 +1201,12 @@ void setup() {
         Serial.println("ADS1115 not found"); // Fortæl hvis ADC'en ikke svarer.
     }
     adc.setGain(GAIN_ONE);        // Sæt ADC'ens indre forstærker til ±4.096V for maksimal udnyttelse (REQ-DSP-6.01).
+    // RETTELSE (buglist punkt 1): Sæt datarate eksplicit til 475 SPS (Adafruit default er 128 SPS).
+    // Med 475 SPS tager hver konvertering ~2,1 ms. Sammen med vTaskDelay(10 ms) i
+    // metrologi-loopet giver det en reel loop-tid på ~12 ms → ~83 Hz, hvilket er
+    // tættere på kravet end de tidligere ~56 Hz (128 SPS + 10 ms delay).
+    // Bemærk: ADS1115 har ingen 100 SPS-indstilling; 475 SPS er nærmeste standard over.
+    adc.setDataRate(RATE_ADS1115_475SPS); // Sæt ADC-datarate til 475 SPS.
 
     dataQueue = xQueueCreate(10, sizeof(MeasurementPacket)); // Opret data-rør med plads til 10 pakker.
 
