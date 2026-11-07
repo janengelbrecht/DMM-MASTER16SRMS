@@ -13,10 +13,6 @@
 > - ❌ **Kalibreringsmålinger fra fysisk prototype** — se `tools/calibration/README.md`
 >
 > Firmware er **funktionelt komplet i henhold til SRS-DMM-16SRMS-V6.0-MASSIVE**, men er endnu **ikke verificeret på fysisk hardware**.
-> Firmware er simuleret og fundet fejlfri.
-> Hardwaren er simuleret som den er beskrevet og fundet fejlfri.
-> Da det er et bænkmultimeter der primært vil komme til at måle på lysnettilsluttet udstyr kan man sikkert sænke kravene til CAT II.
-> Men det skader ikke at designe efter CAT III hovedsagligt.
 
 ---
 
@@ -160,7 +156,7 @@ Instrumentet er opbygget af 10 funktionelle blokke:
 | **Blok 9** | Digital isolationsbarriere (ISO1541 + optokoblere) | 📝 Specifikation klar |
 | **Blok 10** | Strømmåling & præcisionsshunts | 📝 Specifikation klar |
 
-> **Bemærk:** Kun firmware (Blok 7) er færdigimplementeret. De øvrige blokke er specificeret i `docs/HW-SW-SPEC-V6.0-MASTER.md`, men de fysiske skemaer, PCB-layout og BOM mangler stadig.
+> **Bemærk:** Kun firmware (Blok 7) er færdigimplementeret. De øvrige blokke er specificeret i `docs/HW-SW-SPEC-V6.0-MASTER.md`, men de fysiske diagrammer, PCB-layout og BOM mangler stadig.
 
 ### Centrale komponenter
 
@@ -360,7 +356,7 @@ DMM-MASTER-16SRMS/
 │
 ├── hardware/
 │   ├── README.md                      ← Hardware-status
-│   ├── schematics/                    ← ❌ KiCad-skemaer (mangler)
+│   ├── schematics/                    ← ❌ KiCad-diagrammer (mangler)
 │   ├── pcb/                           ← ❌ PCB-layout (mangler)
 │   ├── bom/                           ← ❌ Stykliste (mangler)
 │   ├── enclosure/                     ← ❌ 3D-kabinet (mangler)
@@ -379,7 +375,7 @@ DMM-MASTER-16SRMS/
 
 | Område | Status | Prioritet |
 | --- | --- | --- |
-| KiCad-skemaer (Blok 1–10) | ❌ Mangler | 🔴 Høj |
+| KiCad-diagrammer(Blok 1–10) | ❌ Mangler | 🔴 Høj |
 | PCB-layout med isolationsslidser | ❌ Mangler | 🔴 Høj |
 | BOM med verificerede MPN'er | ❌ Mangler | 🔴 Høj |
 | 3D-kabinet (.STEP/.STL) | ❌ Mangler | 🟡 Medium |
@@ -427,7 +423,7 @@ Se `hardware/README.md` og `images/README.md` for detaljer.
 
 ### 🚧 Fase 2 — Hardware-design (2026)
 
-- [ ] KiCad-skemaer for alle 10 blokke
+- [ ] KiCad-diagrammer for alle 10 blokke
 - [ ] PCB-layout med isolationsslidser og guard-rings
 - [ ] BOM med verificerede MPN'er
 - [ ] 3D-kabinet med CAT III-barrierer
@@ -461,7 +457,7 @@ Se `CONTRIBUTING.md` for retningslinjer. Kort opsummeret:
 
 ### Prioriteret rækkefølge for hjælp
 
-1. 🔴 **KiCad-skemaer** for alle 10 blokke
+1. 🔴 **KiCad-diagrammer** for alle 10 blokke
 2. 🔴 **PCB-layout** med isolationsslidser og guard-rings
 3. 🔴 **BOM** med verificerede MPN'er og tolerancer
 4. 🟡 **Kabinet** med CAT III-barrierer og 19 mm bøsningsafstand
