@@ -156,11 +156,11 @@ Systemet er opdelt i to **galvanisk isolerede domæner** adskilt af en fysisk PC
 │   ├── 5" TFT 800×480 (SSD1963)                                      │
 │   └── USB-CDC Virtual COM Port                                      │
 └───────────────────────────────┬─────────────────────────────────────┘
-								│
-			  ══════════════════╪══════════════════
-				ISOLATIONSBARRIERE │  (>4000 V RMS, 8 mm)
-			  ══════════════════╪══════════════════
-								│
+                                │
+              ══════════════════╪══════════════════
+              ISOLATIONSBARRIERE │  (>4000 V RMS, 8 mm)
+              ══════════════════╪══════════════════
+                                │
 ┌───────────────────────────────┴─────────────────────────────────────┐
 │  ZONE B — MÅLEDOMÆNE (flydende stel, GND_ISO)                       │
 │                                                                     │
