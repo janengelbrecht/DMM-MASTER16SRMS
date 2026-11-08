@@ -4,7 +4,7 @@
 
 > ⚠️ **PROJEKTSTATUS: UNDER UDVIKLING (WORK IN PROGRESS)**
 >
-> Dette projekt er **ikke færdigt**. Firmware og dokumentation er lavet, og 100% iorden, men følgende dele mangler stadig og er ikke publiceret endnu:
+> Dette projekt er **ikke færdigt**. Firmware og dokumentation er langt, men følgende dele mangler stadig og er ikke publiceret endnu:
 >
 > - ❌ **Komplette diagrammer (KiCad/Altium)** — se `hardware/schematics/README.md`
 > - ❌ **PCB-layout og Gerber-filer** — se `hardware/pcb/README.md`
@@ -19,27 +19,27 @@
 ## Indholdsfortegnelse
 
 1. [Introduktion](#introduktion)
-2. [Projektstatus](#️-projektstatus)
-3. [Målgruppe og formål](#-målgruppe-og-formål)
-4. [Designfilosofi](#-designfilosofi)
-5. [Hvorfor dette projekt er anderledes](#-hvorfor-projektet-er-anderledes)
-6. [Nøglespecifikationer](#-nøglespecifikationer)
-7. [Systemarkitektur](#️-systemarkitektur)
-8. [Hardware-overblik](#-hardware-overblik)
-9. [Firmware og software](#-firmware-og-software)
-10. [SCPI-kommunikation](#-scpi-kommunikation)
-11. [Kom godt i gang](#-kom-godt-i-gang)
-12. [Projektstruktur](#️-projektstruktur)
-13. [Hvad der stadig mangler](#️-hvad-der-stadig-mangler)
-14. [Sikkerhed — læs dette først](#-sikkerhed--læs-dette-først)
-15. [Roadmap](#️-roadmap)
-16. [Bidrag](#-bidrag)
-17. [Licens](#-licens)
-18. [Kontakt og links](#-kontakt-og-links)
+2. [Projektstatus](#projektstatus)
+3. [Målgruppe og formål](#målgruppe-og-formål)
+4. [Designfilosofi](#designfilosofi)
+5. [Hvorfor dette projekt er anderledes](#hvorfor-dette-projekt-er-anderledes)
+6. [Nøglespecifikationer](#nøglespecifikationer)
+7. [Systemarkitektur](#systemarkitektur)
+8. [Hardware-overblik](#hardware-overblik)
+9. [Firmware og software](#firmware-og-software)
+10. [SCPI-kommunikation](#scpi-kommunikation)
+11. [Kom godt i gang](#kom-godt-i-gang)
+12. [Projektstruktur](#projektstruktur)
+13. [Hvad der stadig mangler](#hvad der-stadig-mangler)
+14. [Sikkerhed — læs dette først](#sikkerhed---læs-dette-først)
+15. [Roadmap](#roadmap)
+16. [Bidrag](#bidrag)
+17. [Licens](#licens)
+18. [Kontakt og links](#kontakt-og-links)
 
 ---
 
-## Introduktion
+### Introduktion
 
 **DMM-MASTER 16SRMS** er et open-source hardware/software co-design af et **isoleret, 4½-cifret bænkmultimeter** med **CAT III (600 V)** sikkerhedsklassifikation.
 
@@ -57,7 +57,7 @@ Med en estimeret udsalgspris på **ca. 825 kr. inkl. moms** (ved 1.000 enheders 
 
 ---
 
-## ⚠️ Projektstatus
+### Projektstatus
 
 > **PROJEKTET ER IKKE FÆRDIGT.** Firmware og dokumentation er langt, men følgende dele mangler stadig og er **ikke publiceret endnu**:
 
@@ -79,7 +79,7 @@ Meningen med projektet er, at det kan tjene som **afgangsprojekt for en ingeniø
 
 ---
 
-## 👥 Målgruppe og formål
+### Målgruppe og formål
 
 Projektet er primært målrettet tre grupper:
 
@@ -89,7 +89,7 @@ Projektet er primært målrettet tre grupper:
 
 ---
 
-## 💡 Designfilosofi
+### Designfilosofi
 
 > Dette instrument forsøger **ikke** at slå Fluke eller Keysight på rå præcision. Det er designet til at være den mest **åbne, modificerbare og veldokumenterede** platform i 4½-cifret-klassen.
 
@@ -97,7 +97,7 @@ Altså: Åbenhed og gennemsigtighed frem for spec-sheet-konkurrence med premium-
 
 ---
 
-## ⭐ Hvorfor dette projekt er anderledes
+### Hvorfor dette projekt er anderledes
 
 | Funktion | Typisk lavpris-DMM | DMM-MASTER 16SRMS |
 |----------|-------------------|-------------------|
@@ -113,7 +113,7 @@ Altså: Åbenhed og gennemsigtighed frem for spec-sheet-konkurrence med premium-
 
 ---
 
-## 📐 Nøglespecifikationer
+### Nøglespecifikationer
 
 ### Metrologi
 
@@ -144,7 +144,7 @@ Altså: Åbenhed og gennemsigtighed frem for spec-sheet-konkurrence med premium-
 
 ---
 
-## 🏗️ Systemarkitektur
+### Systemarkitektur
 
 Systemet er opdelt i to **galvanisk isolerede domæner** adskilt af en fysisk PCB-barriere på minimum 8 mm:
 
@@ -183,7 +183,7 @@ Data udveksles sikkert via en FreeRTOS-kø (`dataQueue`) med plads til **10 `Mea
 
 ---
 
-## 🔧 Hardware-overblik
+### Hardware-overblik
 
 Instrumentet er opbygget af **10 funktionelle blokke**:
 
@@ -218,7 +218,7 @@ Instrumentet er opbygget af **10 funktionelle blokke**:
 
 ---
 
-## 💻 Firmware og software
+### Firmware og software
 
 ### Arkitekturprincipper
 
@@ -263,7 +263,7 @@ firmware/
 
 ---
 
-## 📡 SCPI-kommunikation
+### SCPI-kommunikation
 
 Instrumentet emulerer en **USB-CDC Virtual COM Port** og taler standard SCPI (IEEE 488.2 / SCPI-1999).
 
@@ -321,7 +321,7 @@ for _ in range(10):
 
 dmm.close()
 
-## 🚀 Kom godt i gang
+### Kom godt i gang
 
 ### 1. Klargør hardware
 
@@ -368,7 +368,7 @@ Kopiér `firmware/User_Setup.h` til TFT_eSPI's biblioteksmappe.
 pip install -r requirements.txt
 python tools/scpi_test.py
    
-## 🗂️ Projektstruktur
+### Projektstruktur
 
 ```text
 DMM-MASTER-16SRMS/
@@ -403,7 +403,7 @@ DMM-MASTER-16SRMS/
 │
 └── images/                            ← ❌ Skærmbilleder (mangler)
 
-## 🕳️ Hvad der stadig mangler
+### Hvad der stadig mangler
 
 | Område | Status | Prioritet |
 |--------|--------|-----------|
@@ -420,7 +420,7 @@ Se `hardware/README.md` og `images/README.md` for detaljer.
 
 ---
 
-## 🔒 Sikkerhed — læs dette først
+### Sikkerhed — læs dette først
 
 > ⚠️ **DETTE INSTRUMENT ER DESIGNET TIL CAT III (600 V), MEN ER ENDNU IKKE CERTIFICERET.**
 >
@@ -443,7 +443,7 @@ Se `hardware/README.md` og `images/README.md` for detaljer.
 
 ---
 
-## 🗺️ Roadmap
+### Roadmap
 
 ### ✅ Fase 1 — Firmware og dokumentation (2025–2026)
 
@@ -476,7 +476,7 @@ Se `hardware/README.md` og `images/README.md` for detaljer.
 
 ---
 
-## 🤝 Bidrag
+### Bidrag
 
 Bidrag er meget velkomne — især inden for hardware-design og 3D-kabinet, hvor de største huller er lige nu.
 
@@ -496,7 +496,7 @@ Se `CONTRIBUTING.md` for retningslinjer. Kort opsummeret:
 
 ---
 
-## 📄 Licens
+### Licens
 
 Dette projekt er open source. Se `LICENSE` for detaljer.
 
@@ -507,7 +507,7 @@ Dette projekt er open source. Se `LICENSE` for detaljer.
 
 ---
 
-## 🔗 Kontakt og links
+### Kontakt og links
 
 - **Projekt:** DMM-MASTER 16SRMS
 - **Repository:** [https://github.com/janengelbrecht/DMM-MASTER16SRMS](https://github.com/janengelbrecht/DMM-MASTER16SRMS)
