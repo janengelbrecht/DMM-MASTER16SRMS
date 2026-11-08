@@ -26,7 +26,7 @@
 // DATO FOR AFSLUTNING:      5. november 2026
 // DATO FOR GODKENDELSE:     5. november 2026
 // GODKENDT AF:              R&D & Teknisk Dokumentation
-// FIRMA:                    DMM-MASTER Instruments ApS
+// FIRMA:                    JEP-Electronics
 // KLASSIFIKATION:           OFFENTLIG / OPEN SOURCE
 // LIVSCYKLUS:               MASTER SPECIFICATION — RELEASE 6.0
 // MÅLGRUPPE:                UDVIKLERE
