@@ -168,3 +168,254 @@ mens Kelvin-matrixen sender spændingsfaldet direkte tilbage til AIN2 og AIN3 di
 For at beskytte mod 230 V indsat ved en fejl ("hov-fejl"), klamper 1N4148-dioder spændingen til strømforsyningens rails, 
 hvorefter PTC-termistoren hurtigt begrænser strømmen. Samtidig overvåger en LM393 komparator spændingsknudepunktet
 og udløser på under et mikrosekund et hardware-interrupt via en 6N137 optokobler over til ESP32, så relæerne kan frakobles og skaden begrænses. 
+
+Blok-for-blok vurdering
+Blok 1 — Digital strømforsyning (Zone A)
+Kan tegnes: 🟡 Delvist
+
+Element	Status
+Transformator 9 V AC → 4× 1N4007 → 1000 µF → LM7805 → AMS1117-3.3	✅ Kan tegnes direkte
+Snubber-kondensatorer 10 nF over dioder	✅ Specificeret
+Afkobling (100 nF, 10 µF)	✅ Specificeret
+Men ingeniøren skal selv:
+
+Vælge transformator-MPN (dokumentet siger "f.eks. Myrra 44083" — ikke verificeret for viklingsadskillelse)
+
+Dimensionere LM7805-køleplade (åbent punkt #6: "termisk belastning ikke analyseret")
+
+Beslutte om AMS1117-3.3's 800 mA er nok til TFT + ESP32 + ISO1541 (åbent punkt #3: TFT-MPN ikke valgt)
+
+Konklusion: Skemaet kan tegnes, men strømbudget og termik er ikke verificeret.
+
+Blok 2 — Isoleret analog strømforsyning (Zone B)
+Kan tegnes: 🟡 Delvist
+
+Element	Status
+9V-0-9V center-tapped → dobbelt broudretter → LM7805/LM7905 → ±5 V_ISO	✅ Kan tegnes direkte
+Tantal 10 µF + keramisk 100 nF afkobling	✅ Specificeret
+Men ingeniøren skal selv:
+
+Sikre at transformatorens to viklinger har tilstrækkelig fysisk adskillelse (≥8 mm) — dette er et mekanisk valg, ikke et skemavalg, men det påvirker valget af transformator
+
+Beslutte om LM7905's negative rail skal have ekstra beskyttelse (dokumentet nævner det ikke)
+
+Konklusion: Kan tegnes, men transformatorens viklingsadskillelse er ikke dokumenteret.
+
+Blok 3 — Transientbeskyttelse
+Kan tegnes: 🔴 Nej, ikke uden at løse en konflikt
+
+Dokumentet siger:
+
+MOV: S10K300 (300 V AC RMS max kontinuerlig)
+
+GDT: 600 V DC sparkover
+
+Serieforbindelse
+
+Problemet: HW-DOC §4.1 siger selv: "S10K300's maksimale kontinuerlige AC-spænding er 300 V RMS, hvilket er tilstrækkeligt til 600 V DC-måling, men ikke til kontinuerlig 600 V AC RMS."
+
+Og åbent punkt #5: "1000 V DC-området bruger samme MOV som 600 V AC. MOV kan overbelastes ved 600 V AC RMS."
+
+Ingeniøren skal selv:
+
+Vælge mellem S10K300 (til DC-only) eller S10K420 (til AC 600 V RMS)
+
+Beslutte om GDT'ens 600 V sparkover er forenelig med den valgte MOV
+
+Dimensionere PCB-baner (100 mil) — det er layout, ikke skema
+
+Konklusion: Kan ikke tegnes entydigt — der er en uløst modstrid mellem DC- og AC-krav.
+
+Blok 4 — Auto-ranging, spændingsdeler, FET-buffer
+Kan tegnes: 🟡 Delvist
+
+Element	Status
+10× 1 MΩ 1206 i serie (10 MΩ)	✅ Specificeret
+Omron G6K-2P-Y relæer (K1, K2, K3)	✅ Specificeret
+LSK170 JFET-buffer	🟡 Nævnt, men bias-netværk ikke dimensioneret
+Men ingeniøren skal selv:
+
+Dimensionere LSK170 bias: gate-modstand, source-modstand, drain-modstand, afkobling — dokumentet siger kun "skal bias'es korrekt"
+
+Beslutte om ADA4530-1 skal bruges i stedet (dokumentet nævner det som alternativ, men footprint er anderledes)
+
+Dimensionere relæ-driverkredsløb (PC817 + base-modstand + eventuel Darlington) — dokumentet nævner PC817, men ikke driver-topologi
+
+Beslutte hvordan AC-kobling til AD8436 sker (kondensatorværdi, bias)
+
+Tegne guard-ring — det er layout, men påvirker skemaets netlabels
+
+Konklusion: Kan delvist tegnes — topologien er klar, men flere kritiske komponentværdier mangler.
+
+Blok 5 — Modstandsmåling og "hov-fejl"
+Kan tegnes: 🔴 Nej, ikke uden egne designbeslutninger
+
+Element	Status
+LT1006 + LM336-2.5 konstantstrømskilde	🟡 Topologi nævnt, men ingen værdier
+PTC 100 mA / 600 V	✅ Specificeret
+1N4148 klamper til VCC_ISO/GND_ISO	✅ Specificeret
+LM393 komparator	🟡 Nævnt, men reference-deler (R18–R21) ikke dimensioneret
+6N137 optokobler	✅ Specificeret
+Men ingeniøren skal selv:
+
+Dimensionere LT1006-strømkilden: feedback-modstande, reference-modstand, range-skift (100 nA til 1 mA) — dokumentet siger "omskiftelig teststrøm", men ikke hvordan
+
+Dimensionere LM393-reference: R18–R21 er "efter dimensionering" — dvs. ingeniøren skal selv vælge 4,5 V reference-deler
+
+Dimensionere 6N137 LED-modstand (R22) — "afhænger af VCC_ISO og LED-strøm"
+
+Beslutte hvordan range-skift af teststrøm styres (flere relæer? MOSFET?)
+
+Beslutte hvordan Kelvin-matrixen (Force+/Force−/Sense+/Sense−) rout es — dokumentet nævner det, men tegner det ikke
+
+Konklusion: Kan ikke tegnes entydigt — for mange værdier er udeladt.
+
+Blok 6 — True RMS (AD8436)
+Kan tegnes: 🟡 Delvist
+
+Element	Status
+AD8436 (QSOP-20)	✅ Specificeret
+C_AVG = 3,3 µF tantal/film	✅ Specificeret
+Gain-modstande R22/R23	🟡 "Efter datablad" — ikke dimensioneret
+Men ingeniøren skal selv:
+
+Dimensionere R22/R23 ud fra AD8436-databladet og ønsket gain (0–4 V output for 0–750 V RMS input)
+
+Beslutte indgangs-kobling (AC-koblingskondensator, bias til mid-rail)
+
+Beslutte om AD8436's interne buffer skal bruges eller ekstern op-amp
+
+Konklusion: Kan tegnes delvist — topologien er klar, men gain-dimensionering mangler.
+
+Blok 7 — ESP32, TFT, buzzer
+Kan tegnes: ✅ Ja, stort set
+
+Element	Status
+ESP32-WROOM-32 modul	✅ Specificeret
+Pin-mapping (I2C, relæer, interrupt, SPI)	✅ Specificeret i HW-DOC §1.4
+Buzzer på GPIO 26	✅ Specificeret
+Reset-knap	✅ Nævnt
+Men ingeniøren skal selv:
+
+Vælge endelig TFT-MPN (RA8875, 800×480, SPI) — dokumentet siger "f.eks. Buydisplay ER-TFTM050-3", ikke verificeret
+
+Beslutte TFT-backlight-driver (dokumentet nævner TFT_BL som valgfri)
+
+Beslutte buzzer-driver (transistor eller direkte GPIO — dokumentet siger "strøm ≤12 mA")
+
+Sikre at ESP32's strapping-pins ikke bruges til relæer (GPIO 12 er strapping — dokumentet nævner det ikke eksplicit)
+
+Konklusion: Kan tegnes, men TFT-MPN skal vælges først.
+
+Blok 8 — ADS1115
+Kan tegnes: ✅ Ja
+
+Element	Status
+ADS1115 (VSSOP-10)	✅ Specificeret
+I2C pull-ups 10 kΩ	✅ Specificeret
+Afkobling 100 nF + 1 µF	✅ Specificeret
+ADDR til GND (0x48)	✅ Specificeret
+Konklusion: Kan tegnes direkte.
+
+Blok 9 — Digital isolation
+Kan tegnes: 🟡 Delvist
+
+Element	Status
+ISO1541 (SOIC-8)	✅ Specificeret
+6N137 (DIP-8)	✅ Specificeret
+PC817 ×4 (DIP-4)	✅ Specificeret
+LED-modstande R3–R7	🟡 "Dimensioneres efter VCC_ISO" — ikke dimensioneret
+Men ingeniøren skal selv:
+
+Dimensionere R3 (6N137 LED, 220 Ω er nævnt — men skal verificeres mod VCC_ISO)
+
+Dimensionere R4–R7 (PC817 LED, 1 kΩ er nævnt — men skal verificeres mod ESP32 GPIO-strøm)
+
+Beslutte pull-up på ISO1541's måleside (dokumentet nævner 10 kΩ til VCC_ISO)
+
+Løse åbent punkt #1: ISO1541's UL-rating er 2500 V RMS, ikke 4000 V RMS — dette er en blokerende konflikt for CAT III-certificering
+
+Konklusion: Kan tegnes delvist — men isoleringsrating-konflikten skal løses først.
+
+Blok 10 — Strømshunts
+Kan tegnes: 🟡 Delvist
+
+Element	Status
+100 Ω (µA), 1 Ω (mA), 0,01 Ω Manganin (10 A)	✅ Værdier specificeret
+HRC-sikring Bussmann DMM-B-11A	✅ Specificeret
+Klampertransistorer Q2–Q5	🟡 "Efter dimensionering" — ikke dimensioneret
+PTC2	🟡 "Efter dimensionering" — ikke dimensioneret
+Men ingeniøren skal selv:
+
+Dimensionere klampertransistorer (BJT/MOSFET-topologi, værdier)
+
+Dimensionere PTC2
+
+Beslutte hvordan shunt-multiplexing til AD8436 sker (relæer? dokumentet nævner "relæ-multiplexing", men tegner det ikke)
+
+Løse åbent punkt #7: Manganin-shunt med dokumenteret TCR <50 ppm/°C
+
+Konklusion: Kan tegnes delvist — men flere beskyttelseskomponenter mangler dimensionering.
+
+Samlet oversigt
+Blok	Kan tegnes direkte?	Kræver egne beslutninger
+1 — Digital strøm	🟡 Delvist	Trafo-MPN, køleplade, strømbudget
+2 — Analog strøm	🟡 Delvist	Trafo-viklingsadskillelse
+3 — Transient	🔴 Nej	MOV-rating-konflikt (DC vs. AC)
+4 — Auto-ranging	🟡 Delvist	LSK170 bias, relæ-driver, AC-kobling
+5 — Ohm & hov-fejl	🔴 Nej	LT1006-strømkilde, LM393-reference, 6N137-modstand
+6 — True RMS	🟡 Delvist	AD8436 gain-modstande, indgangs-kobling
+7 — ESP32/TFT	✅ Ja	TFT-MPN, buzzer-driver
+8 — ADS1115	✅ Ja	—
+9 — Isolation	🟡 Delvist	LED-modstande, isolationsrating-konflikt
+10 — Shunts	🟡 Delvist	Klampertransistorer, PTC2, multiplexing
+Resultat: 2 blokke kan tegnes direkte, 6 delvist, 2 slet ikke.
+
+Hvad ingeniøren konkret skal gøre selv
+Dimensionering (ikke specificeret i dokumentationen)
+LSK170 bias-netværk (Blok 4) — gate/source/drain-modstande
+
+AD8436 gain-modstande R22/R23 (Blok 6) — ud fra datablad
+
+LM393 reference-deler R18–R21 (Blok 5) — 4,5 V reference
+
+LT1006 strømkilde-feedback (Blok 5) — range-skift 100 nA–1 mA
+
+6N137 LED-modstand R3 (Blok 9) — verificér mod VCC_ISO
+
+PC817 LED-modstande R4–R7 (Blok 9) — verificér mod ESP32 GPIO-strøm
+
+Klampertransistorer Q2–Q5 (Blok 10) — topologi og værdier
+
+PTC2 (Blok 10) — dimensionering
+
+Relæ-driverkredsløb (Blok 4) — PC817 + base-modstand + eventuel Darlington
+
+AC-koblingskondensator til AD8436 (Blok 4/6) — værdi og bias
+
+MPN-valg (ikke fastlagt)
+TFT-display — RA8875, 800×480, SPI, 3,3 V
+
+Transformator — med dokumenteret viklingsadskillelse ≥8 mm
+
+Manganin-shunt — med dokumenteret TCR <50 ppm/°C
+
+Sikkerhedsbøsninger — 4 mm, 19 mm centerafstand
+
+PTC-termistorer — 100 mA hold, 600 V CAT III
+
+Konfliktløsning (blokerende)
+MOV-rating — S10K300 vs. S10K420 (DC vs. AC)
+
+ISO1541 vs. 4000 V RMS — vælg højere rating eller dokumentér 8 mm-barriere
+
+ISR-flanke — SRS siger RISING, firmware siger FALLING
+
+SSD1963 vs. RA8875 — firmware_README.md er ikke opdateret
+
+Termisk/EMC (verifikation)
+LM7805/LM7905 køleplade — termisk analyse
+
+Manganin-shunt termisk design — kobberpolygoner
+
+EMC-præcompliance — planlægning
