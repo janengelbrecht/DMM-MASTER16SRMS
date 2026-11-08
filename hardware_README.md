@@ -419,3 +419,1472 @@ LM7805/LM7905 køleplade — termisk analyse
 Manganin-shunt termisk design — kobberpolygoner
 
 EMC-præcompliance — planlægning
+
+Komplet dimensionerings- og komponentvalgsproces for DMM-MASTER 16SRMS
+Baseret på den eksisterende dokumentation og de identificerede mangler gives her en systematisk proces for hvert blok, der mangler dimensionering. Processen er opdelt i beslutningspunkter, beregninger, komponentvalg og verifikationskrav.
+
+Blok 3 — Transientbeskyttelse (MOV/GDT)
+Problem
+S10K300 (300 V AC RMS) er utilstrækkelig til 600 V AC RMS kontinuerlig måling. Åbent punkt #5 i HW-DOC.
+
+Beslutningsproces
+Trin 1: Fastlæg MCOV-krav
+For CAT III 600 V AC RMS skal MOV'ens Maximum Continuous Operating Voltage (MCOV) være ≥ 600 V AC RMS. Bourns anbefaler MCOV ≥ 1,25 × nominel spænding for UL/IEC 62368-1 compliance . Ved 600 V AC RMS kræves MCOV ≥ 750 V AC.
+
+Trin 2: Vælg MOV-type
+
+S10K420: 420 V AC RMS MCOV — stadig utilstrækkelig til 600 V AC kontinuerlig.
+
+S14K510 eller S20K550: 510–550 V AC RMS MCOV — tilstrækkelig med margin.
+
+Alternativt: Differentier beskyttelsen, så MOV kun er aktiv i DC-mode, og AC-mode bruger en anden kreds. Dette kræver ekstra relæer og komplicerer designet.
+
+Anbefaling: Vælg S20K550 (550 V AC RMS MCOV, 20 mm) for at dække både 600 V AC og 1000 V DC. Ved 1000 V DC er MCOV-kravet lavere (DC-MCOV er typisk ~1,4× AC-MCOV for MOV'er), så 550 V AC RMS dækker 1000 V DC.
+
+Trin 3: Vælg GDT
+GDT'ens sparkover-spænding skal være højere end MOV'ens clamp-spænding ved maksimal transient, men lav nok til at-beskytte MOV'en. Med S20K550 er clamp-spændingen ved 100 A typisk ~1,5 kV. Vælg GDT med sparkover 600–800 V DC (f.eks. Littelfuse GTCX36-601M eller GTCX36-801M).
+
+Trin 4: Verifikation
+
+Beregn samlet restspænding ved 6 kV/3 kA transient (8/20 µs): MOV clamp + GDT arc voltage.
+
+Verificer at restspænding < ADC's absolutte maksimum (4,096 V efter dæmpning).
+
+Blok 4 — LSK170 bias-netværk
+Problem
+LSK170's bias-netværk er ikke dimensioneret. Dokumentet siger kun "skal bias'es korrekt".
+
+Beslutningsproces
+Trin 1: Fastlæg DC-operationspunkt
+LSK170 er en N-kanal JFET med:
+
+V
+G
+S
+S
+=
+−
+40
+V 
+GSS
+​
+ =−40 V max (gate-source breakdown) 
+
+I
+D
+S
+S
+I 
+DSS
+​
+  varierer efter grade (A/B/C/D)
+
+Typisk transkonduktans 
+g
+m
+=
+22
+g 
+m
+​
+ =22 mS 
+
+Indgangsimpedans 20 GΩ typ 
+
+Trin 2: Vælg source-modstand 
+R
+S
+R 
+S
+​
+ 
+For at sætte et bias-strøm 
+I
+D
+I 
+D
+​
+ :
+
+R
+S
+=
+V
+G
+S
+I
+D
+R 
+S
+​
+ = 
+I 
+D
+​
+ 
+V 
+GS
+​
+ 
+​
+ 
+hvor 
+V
+G
+S
+V 
+GS
+​
+  er den ønskede gate-source spænding (negativ for N-JFET).
+
+Vælg 
+I
+D
+=
+1
+I 
+D
+​
+ =1 mA og 
+V
+G
+S
+=
+−
+0
+,
+5
+V 
+GS
+​
+ =−0,5 V (typisk for LSK170):
+
+R
+S
+=
+0
+,
+5
+0
+,
+001
+=
+500
+ 
+Ω
+R 
+S
+​
+ = 
+0,001
+0,5
+​
+ =500Ω
+Trin 3: Vælg drain-modstand 
+R
+D
+R 
+D
+​
+ 
+For at sætte drain-spændingen til midten af forsyningsspændingen (f.eks. 2,5 V ved 5 V forsyning):
+
+R
+D
+=
+V
+D
+D
+−
+V
+D
+I
+D
+=
+5
+−
+2
+,
+5
+0
+,
+001
+=
+2
+,
+5
+ 
+k
+Ω
+R 
+D
+​
+ = 
+I 
+D
+​
+ 
+V 
+DD
+​
+ −V 
+D
+​
+ 
+​
+ = 
+0,001
+5−2,5
+​
+ =2,5kΩ
+Trin 4: Gate-bias
+For høj indgangsimpedans skal gate være DC-koblet til signalet uden DC-sti til jord. En gate-modstand 
+R
+G
+=
+10
+R 
+G
+​
+ =10 MΩ til jord (eller til offset-justering) sikrer defineret DC-potentiale uden at belaste signalet væsentligt (10 MΩ || 20 GΩ ≈ 6,7 MΩ, stadig >1 GΩ kravet? Nej — 6,7 MΩ er under 1 GΩ).
+
+Kritisk: For at opfylde >1 GΩ indgangsimpedans må 
+R
+G
+R 
+G
+​
+  være meget stor eller helt udelades. Løsning: Brug DC-servo eller offset-justering via højimpedans-netværk, eller ac-kobl signalet og brug JFET'ens gate som floating DC-punkt (gate-lækstrøm vil langsomt drive potentialet). Den mest robuste løsning er en guard-ring på PCB og en gate-modstand på ≥100 MΩ til en lav-impedans offset-kilde.
+
+Trin 5: Komponentvalg
+
+R
+S
+R 
+S
+​
+ : 500 Ω, 0,1 %, 25 ppm/°C, 0603
+
+R
+D
+R 
+D
+​
+ : 2,5 kΩ, 0,1 %, 25 ppm/°C, 0603
+
+R
+G
+R 
+G
+​
+ : 100 MΩ, 1 %, 0805 (eller udelad hvis DC-servo bruges)
+
+Afkobling: 100 nF X7R ved drain og source
+
+Trin 6: Verifikation
+
+Simuler i LTspice: AC-analyse for båndbredde, støj-analyse for input-referred noise.
+
+Mål gate-lækstrøm ved 25 °C og 50 °C (skal være <1 nA for at undgå offset-drift).
+
+Blok 5 — LT1006 konstantstrømskilde
+Problem
+Strømkilden er nævnt, men ikke dimensioneret. Kræver range-skift 100 nA–1 mA.
+
+Beslutningsproces
+Trin 1: Fastlæg topologi
+Standard howland-strømkilde eller Jim Williams current source (LT1006 + instrumentforstærker) . For enkelhed og præcision anbefales howland-strømkilde med LT1006:
+
+I
+o
+u
+t
+=
+V
+r
+e
+f
+R
+s
+e
+n
+s
+e
+I 
+out
+​
+ = 
+R 
+sense
+​
+ 
+V 
+ref
+​
+ 
+​
+ 
+Trin 2: Dimensioner for hvert range
+
+Range	
+I
+o
+u
+t
+I 
+out
+​
+ 	
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+ 	
+V
+r
+e
+f
+V 
+ref
+​
+  (LM336)	Effekt i DUT ved 600 Ω
+600 Ω	1 mA	2,5 kΩ	2,5 V	0,6 mW
+6 kΩ	100 µA	25 kΩ	2,5 V	60 µW
+60 kΩ	10 µA	250 kΩ	2,5 V	6 µW
+600 kΩ	1 µA	2,5 MΩ	2,5 V	0,6 µW
+6 MΩ	100 nA	25 MΩ	2,5 V	0,06 µW
+60 MΩ	10 nA	250 MΩ	2,5 V	0,006 µW
+Problem: 250 MΩ modstand er upraktisk (støj, lækstrøm, PCB-layout). Alternativ: Brug lavere 
+V
+r
+e
+f
+V 
+ref
+​
+  for høje ranges, eller switch-kondensator-teknik.
+
+Praktisk løsning: Brug 
+V
+r
+e
+f
+=
+2
+,
+5
+V 
+ref
+​
+ =2,5 V for alle ranges, men skift 
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  via reed-relæer (lav lækstrøm) eller analog switch med lav lækstrøm (f.eks. ADG1408, men lækstrøm ~100 pA kan være for høj for 60 MΩ).
+
+Anbefaling: Brug reed-relæer (f.eks. Coto 9007) til range-skift af 
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+ , da de har lækstrøm <1 pA og kontaktmodstand <100 mΩ.
+
+Trin 3: Komponentvalg
+
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (1 mA): 2,5 kΩ, 0,1 %, 25 ppm/°C, 0805
+
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (100 µA): 25 kΩ, 0,1 %, 25 ppm/°C, 0805
+
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (10 µA): 250 kΩ, 0,1 %, 25 ppm/°C, 0805
+
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (1 µA): 2,5 MΩ, 0,1 %, 25 ppm/°C, 1206
+
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (100 nA): 25 MΩ, 1 %, 25 ppm/°C, 1206 (svær at skaffe i 0,1 %)
+
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (10 nA): 250 MΩ — upraktisk. Alternativ: Brug T-netværk af 10 MΩ + 10 MΩ + 2,5 MΩ med switching.
+
+Trin 4: Verifikation
+
+Mål output-strøm ved hvert range med præcisionsmultimeter i serie.
+
+Mål lækstrøm i "off" state (<1 nA for alle ranges).
+
+Blok 5 — LM393 reference-deler (R18–R21)
+Problem
+Reference-deler til 4,5 V detektion er ikke dimensioneret.
+
+Beslutningsproces
+Trin 1: Fastlæg reference
+LM393's ikke-inverterende indgang skal have en reference på 4,5 V (i henhold til HW-DOC §4.3). Brug en spændingsdeler fra VCC_ISO (5 V) eller en LM336-2,5 reference.
+
+Trin 2: Beregn modstandsdeler
+Med VCC_ISO = 5 V og ønsket 
+V
+r
+e
+f
+=
+4
+,
+5
+V 
+ref
+​
+ =4,5 V:
+
+R
+t
+o
+p
+R
+b
+o
+t
+t
+o
+m
+=
+5
+−
+4
+,
+5
+4
+,
+5
+=
+0
+,
+5
+4
+,
+5
+=
+1
+9
+R 
+bottom
+​
+ 
+R 
+top
+​
+ 
+​
+ = 
+4,5
+5−4,5
+​
+ = 
+4,5
+0,5
+​
+ = 
+9
+1
+​
+ 
+Vælg 
+R
+b
+o
+t
+t
+o
+m
+=
+90
+R 
+bottom
+​
+ =90 kΩ og 
+R
+t
+o
+p
+=
+10
+R 
+top
+​
+ =10 kΩ (E96-serien: 90,9 kΩ og 10 kΩ giver 
+V
+r
+e
+f
+=
+4
+,
+50
+V 
+ref
+​
+ =4,50 V).
+
+Trin 3: Hysterese
+For at undgå chattering ved langsomt stigende spænding tilføjes positiv feedback (hysterese). Med LM393's open-collector output og en pull-up 
+R
+P
+U
+=
+10
+R 
+PU
+​
+ =10 kΩ:
+
+V
+h
+y
+s
+=
+V
+C
+C
+×
+R
+b
+o
+t
+t
+o
+m
+R
+t
+o
+p
++
+R
+b
+o
+t
+t
+o
+m
+×
+R
+P
+U
+R
+P
+U
++
+R
+t
+o
+p
+∣
+∣
+R
+b
+o
+t
+t
+o
+m
+V 
+hys
+​
+ =V 
+CC
+​
+ × 
+R 
+top
+​
+ +R 
+bottom
+​
+ 
+R 
+bottom
+​
+ 
+​
+ × 
+R 
+PU
+​
+ +R 
+top
+​
+ ∣∣R 
+bottom
+​
+ 
+R 
+PU
+​
+ 
+​
+ 
+Med 
+R
+t
+o
+p
+=
+10
+R 
+top
+​
+ =10 kΩ, 
+R
+b
+o
+t
+t
+o
+m
+=
+90
+,
+9
+R 
+bottom
+​
+ =90,9 kΩ, 
+R
+P
+U
+=
+10
+R 
+PU
+​
+ =10 kΩ:
+
+R
+t
+o
+p
+∣
+∣
+R
+b
+o
+t
+t
+o
+m
+=
+9
+,
+0
+ 
+k
+Ω
+R 
+top
+​
+ ∣∣R 
+bottom
+​
+ =9,0kΩ
+V
+h
+y
+s
+≈
+5
+×
+0
+,
+9
+×
+10
+10
++
+9
+≈
+2
+,
+4
+ 
+V
+V 
+hys
+​
+ ≈5×0,9× 
+10+9
+10
+​
+ ≈2,4V
+Det er for meget hysterese (reference falder til ~2,1 V efter trigger). Reducer 
+R
+P
+U
+R 
+PU
+​
+  til 1 kΩ:
+
+V
+h
+y
+s
+≈
+5
+×
+0
+,
+9
+×
+1
+1
++
+9
+≈
+0
+,
+45
+ 
+V
+V 
+hys
+​
+ ≈5×0,9× 
+1+9
+1
+​
+ ≈0,45V
+Det giver en trigger ved 4,5 V og release ved ~4,05 V — acceptabelt.
+
+Trin 4: Komponentvalg
+
+R
+t
+o
+p
+R 
+top
+​
+ : 10 kΩ, 1 %, 0603
+
+R
+b
+o
+t
+t
+o
+m
+R 
+bottom
+​
+ : 90,9 kΩ, 1 %, 0603
+
+R
+P
+U
+R 
+PU
+​
+ : 1 kΩ, 1 %, 0603
+
+Afkobling: 100 nF X7R ved LM393's VCC
+
+Trin 5: Verifikation
+
+Mål trigger-spænding med præcisionsspændingskilde: skal være 4,5 V ±0,1 V.
+
+Mål release-spænding: skal være 4,05 V ±0,1 V.
+
+Verificer reaktionstid ved 230 V step (skal være <10 µs inkl. optokobler).
+
+Blok 6 — AD8436 gain-modstande
+Problem
+R22/R23 er "efter datablad" — ikke dimensioneret.
+
+Beslutningsproces
+Trin 1: Fastlæg input/output-spændingsområde
+
+ACV-indgang: 0–750 V RMS (efter dæmpning: 0–7,5 V RMS ved ADC-indgang? Nej — efter 1:100 dæmpning ved 750 V er signalet 7,5 V RMS, men AD8436's maksimale input er 3 V RMS . Så ved 750 V RMS skal dæmpningen være større end 1:100, eller AD8436 skal have ekstern dæmpning).
+
+Kritisk: AD8436's maksimale input er 3 V RMS (8,5 V p-p) . Ved 750 V RMS kræves dæmpning på mindst 750/3 = 250:1. Den eksisterende 1:100 dæmpning er utilstrækkelig for ACV på høje ranges.
+
+Løsning: Enten:
+
+Tilføj ekstra dæmpning (1:3) før AD8436 for ACV-mode (kræver ekstra relæ/modstand).
+
+Brug AD8436's interne FET-buffer med ekstern modstandsfordeler (f.eks. 1 MΩ + 2 MΩ = 1:3).
+
+Begræns ACV til 250 V RMS (ikke acceptabelt iht. spec).
+
+Anbefaling: Tilføj en ekstern 1:3 dæmpning (1 MΩ serie + 500 kΩ til jord) før AD8436's IBUFIN+ i ACV-mode. Dette kræver et ekstra relæ (K5) og to præcisionsmodstande.
+
+Trin 2: Dimensioner gain
+AD8436's output er 0–4 V DC for 0–3 V RMS input (typisk gain ~1,33). Med ekstern 1:3 dæmpning bliver input til AD8436 0–1 V RMS for 0–750 V RMS indgang. Ønsket output: 0–4 V DC.
+
+AD8436's transferfunktion: 
+V
+o
+u
+t
+=
+V
+i
+n
+,
+R
+M
+S
+×
+G
+V 
+out
+​
+ =V 
+in,RMS
+​
+ ×G, hvor 
+G
+G sættes af eksterne modstande. Fra databladet: 
+G
+=
+1
++
+R
+f
+/
+R
+g
+G=1+R 
+f
+​
+ /R 
+g
+​
+  eller tilsvarende konfiguration.
+
+Ved 
+V
+i
+n
+,
+R
+M
+S
+=
+1
+V 
+in,RMS
+​
+ =1 V (svarende til 750 V RMS indgang efter 1:250 dæmpning): ønsket 
+V
+o
+u
+t
+=
+4
+V 
+out
+​
+ =4 V → 
+G
+=
+4
+G=4.
+
+Trin 3: Vælg modstande
+Ifølge AD8436-databladet er gain konfigureret via modstande tilsluttet til SUM-pinden. Typisk 
+R
+f
+=
+16
+R 
+f
+​
+ =16 kΩ (intern) og ekstern 
+R
+g
+R 
+g
+​
+ :
+
+G
+=
+16
+k
+R
+g
+(forenklet model)
+G= 
+R 
+g
+​
+ 
+16k
+​
+ (forenklet model)
+For 
+G
+=
+4
+G=4: 
+R
+g
+=
+4
+R 
+g
+​
+ =4 kΩ.
+
+Komponentvalg:
+
+R
+g
+R 
+g
+​
+ : 4,02 kΩ, 0,1 %, 25 ppm/°C, 0603
+
+R
+f
+R 
+f
+​
+ : intern (16 kΩ), ingen ekstern nødvendig
+
+Ekstern dæmpning: 1 MΩ + 499 kΩ (0,1 %, 25 ppm/°C) for 1:3
+
+Trin 4: Verifikation
+
+Påtryk kendt AC RMS (f.eks. 1 V RMS, 50 Hz) og mål DC-output.
+
+Verificer linearitet over 0,1–3 V RMS.
+
+Verificer båndbredde ved 100 kHz (skal være −3 dB punkt >100 kHz).
+
+Blok 9 — Optokobler LED-modstande
+Problem
+R3–R7 er "dimensioneres efter VCC_ISO" — ikke beregnet.
+
+Beslutningsproces
+Trin 1: 6N137 (fejl-interrupt)
+6N137's LED kræver 
+I
+F
+=
+5
+I 
+F
+​
+ =5 mA minimum, maksimum 20 mA . Ved VCC_ISO = 5 V og 
+V
+F
+≈
+1
+,
+4
+V 
+F
+​
+ ≈1,4 V:
+
+R
+3
+=
+5
+−
+1
+,
+4
+0
+,
+010
+=
+360
+ 
+Ω
+R 
+3
+​
+ = 
+0,010
+5−1,4
+​
+ =360Ω
+Vælg 330 Ω (E24) for 
+I
+F
+≈
+11
+I 
+F
+​
+ ≈11 mA.
+
+Trin 2: PC817 (relædrivere)
+PC817's CTR er 50–300 %. For at drive et Omron G6K relæ (coil 5 V, ~40 mA) via PC817's fototransistor:
+
+I
+C
+=
+C
+T
+R
+×
+I
+F
+I 
+C
+​
+ =CTR×I 
+F
+​
+ 
+Med 
+C
+T
+R
+=
+50
+CTR=50 % og ønsket 
+I
+C
+=
+40
+I 
+C
+​
+ =40 mA: 
+I
+F
+=
+80
+I 
+F
+​
+ =80 mA — for høj (PC817 max 
+I
+F
+=
+50
+I 
+F
+​
+ =50 mA).
+
+Løsning: Brug Darlington-konfiguration med PC817 + ekstern transistor (f.eks. BC547), eller brug lavere coil-strøm relæ (Omron G6K-2P-Y har coil-strøm ~20 mA ved 5 V). Med 
+I
+C
+=
+20
+I 
+C
+​
+ =20 mA og CTR = 50 %: 
+I
+F
+=
+40
+I 
+F
+​
+ =40 mA — stadig for høj for kontinuerlig drift.
+
+Anbefaling: Brug PC817 som driver for en MOSFET (f.eks. 2N7002) eller brug PC817 med lavere CTR-krav og en pull-up modstand på output, der driver relæet via en ekstern transistor.
+
+Bedste løsning: Brug PC817 til at drive en BC547 (common-emitter), som driver relæspolen. PC817's 
+I
+F
+=
+10
+I 
+F
+​
+ =10 mA (R4 = 360 Ω), 
+I
+C
+≈
+5
+I 
+C
+​
+ ≈5 mA, som driver BC547's base (
+h
+F
+E
+=
+100
+h 
+FE
+​
+ =100) → 
+I
+c
+o
+i
+l
+=
+500
+I 
+coil
+​
+ =500 mA (rigeligt).
+
+Trin 3: Komponentvalg
+
+R3 (6N137): 330 Ω, 1 %, 0603
+
+R4–R7 (PC817): 360 Ω, 1 %, 0603
+
+BC547: 4 stk., TO-92
+
+Pull-up på 6N137 output: 4,7 kΩ til VCC (ESP32-siden)
+
+Trin 4: Verifikation
+
+Mål 
+I
+F
+I 
+F
+​
+  i hver optokobler ved nominel spænding.
+
+Mål relæets træk- og slip-tid (<5 ms for G6K).
+
+Verificer 6N137's propagation delay (<100 ns).
+
+Blok 10 — Klampertransistorer (Q2–Q5) og PTC2
+Problem
+"Efter dimensionering" — ikke specificeret.
+
+Beslutningsproces
+Trin 1: Fastlæg beskyttelsesbehov
+Strømindgangen (µA/mA) skal beskyttes mod:
+
+Overstrøm (f.eks. 230 V påtryk i strøm-mode)
+
+Overspænding på ADC-indgang (<4,096 V)
+
+Trin 2: Vælg klamper-topologi
+Brug BJT-baseret aktiv klamper (som nævnt i HW-DOC §4.6): en PNP-transistor med base styret af en reference, der klamper spændingen ved ~4,5 V.
+
+Kredsløb: For hver indgang (µA og mA):
+
+PTC2: 100 mA holdestrøm, 600 V CAT III rated (f.eks. Bourns MF-R100)
+
+Klamper: 2× 1N4148 til VCC_ISO/GND_ISO (grov beskyttelse)
+
+Aktiv klamper: BC556 (PNP) med base til 4,5 V reference (fra LM393's reference-deler), emitter til indgang, collector til GND. Når indgangsspænding >4,5 V + 
+V
+B
+E
+V 
+BE
+​
+ , leder BC556 og klamper spændingen.
+
+Trin 3: Komponentvalg
+
+PTC2: Bourns MF-R100 (1 A hold, 2 A trip) — ikke 100 mA som specificeret. 100 mA PTC er for lav for 10 A-range? Nej, PTC2 er kun for µA/mA-indgangen (max 600 mA). Vælg MF-R050 (500 mA hold) eller MF-R075 (750 mA hold) for at undgå unødig udkobling ved 600 mA.
+
+Klampertransistorer: BC556 (PNP, 65 V, 100 mA) — 2 stk. (µA og mA)
+
+1N4148: 4 stk. (2 per indgang)
+
+Trin 4: Verifikation
+
+Påtryk 230 V AC i mA-mode: mål restspænding på ADC-indgang (<4,1 V).
+
+Mål PTC'ens reaktionstid (<1 s ved 2× holdestrøm).
+
+Verificer at klamperen ikke påvirker normal måling (lækstrøm <1 nA ved 4 V).
+
+Blok 1/2 — Transformator-MPN
+Problem
+"Myrra 44083" er nævnt, men ikke verificeret for viklingsadskillelse ≥8 mm.
+
+Beslutningsproces
+Trin 1: Fastlæg krav
+
+Primær: 230 V AC
+
+Sekundær 1: 9 V AC, min. 10 VA (digital)
+
+Sekundær 2: 9V-0-9V AC, min. 10 VA (analog)
+
+Viklingsadskillelse: ≥8 mm (for at opfylde CAT III-krav)
+
+Isolationsspænding: ≥4 kV
+
+Trin 2: Søg efter transformatorer med dokumenteret viklingsadskillelse
+Myrra 44000-serien har 4 kV isolationsspænding , men viklingsadskillelsen er ikke specificeret i databladet. Dette er et problem for CAT III-certificering.
+
+Anbefaling: Kontakt Myrra eller en anden producent (f.eks. Block, Hahn) for at få dokumenteret viklingsadskillelse. Alternativt: Vælg en medicinsk-grade transformator (f.eks. Block TIM-serien), som typisk har specificeret dobbelt isolation og viklingsadskillelse >8 mm.
+
+Trin 3: Verifikation
+
+Mål viklingsadskillelse på den fysiske komponent (skydelære).
+
+Udfør hipot-test (4 kV RMS, 1 min) mellem primær og sekundær.
+
+Blok 7 — TFT-MPN (RA8875)
+Problem
+"Buydisplay ER-TFTM050-3" er nævnt, men ikke verificeret.
+
+Beslutningsproces
+Trin 1: Verificer kompatibilitet
+ER-TFTM050-3 er et 5" 800×480 TFT med RA8875-controller . Kritisk: Modulet kræver 3,3 V forsyning — 5 V vil ødelægge det . Jumper J8 skal være closed (3,3 V).
+
+Trin 2: Verificer SPI-konfiguration
+Modulet har pull-up modstande (R1/R2/R3) på SPI-linjerne, som kan forstyrre andre SPI-enheder . Løsning: Fjern R1/R2/R3 og C1/C2, eller brug en 74HC125 buffer mellem ESP32 og display.
+
+Trin 3: Verificer strømforbrug
+ER-TFTM050-3's baggrundsbelysning kræver typisk ~200 mA ved 3,3 V. ESP32's AMS1117-3.3 (800 mA) kan håndtere dette, men samlet last (ESP32 ~150 mA + TFT ~200 mA + ISO1541 ~5 mA + PC817 ~20 mA) = ~375 mA — inden for 800 mA, men med kun ~50 % margin.
+
+Anbefaling: Vælg ER-TFTM050-3 med 3,3 V forsyning, fjern R1/R2/R3, og verificer samlet strømforbrug <600 mA.
+
+Alternativ: Buydisplay ER-TFTM050-3 med RA8875 og SPI-grænseflade — dette er det eneste dokumenterede modul, der matcher firmwarens User_Setup.h.
+
+Samlet komponentvalgsliste (nye/ændrede)
+Blok	Komponent	Værdi/Type	MPN (forslag)	Antal	Kritisk parameter
+3	MOV	550 V AC RMS, 20 mm	S20K550	1	MCOV ≥ 600 V AC
+3	GDT	600–800 V DC	GTCX36-601M	1	Sparkover > MOV clamp
+4	
+R
+S
+R 
+S
+​
+  (LSK170)	500 Ω, 0,1 %	—	1	25 ppm/°C
+4	
+R
+D
+R 
+D
+​
+  (LSK170)	2,5 kΩ, 0,1 %	—	1	25 ppm/°C
+4	
+R
+G
+R 
+G
+​
+  (LSK170)	100 MΩ, 1 %	—	1	Højimpedans
+5	
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (1 mA)	2,5 kΩ, 0,1 %	—	1	25 ppm/°C
+5	
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (100 µA)	25 kΩ, 0,1 %	—	1	25 ppm/°C
+5	
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (10 µA)	250 kΩ, 0,1 %	—	1	25 ppm/°C
+5	
+R
+s
+e
+n
+s
+e
+R 
+sense
+​
+  (1 µA)	2,5 MΩ, 0,1 %	—	1	25 ppm/°C
+5	Reed-relæ (range)	5 V, lav lækstrøm	Coto 9007-05-01	3	Lækstrøm <1 pA
+5	
+R
+t
+o
+p
+R 
+top
+​
+  (LM393)	10 kΩ, 1 %	—	1	—
+5	
+R
+b
+o
+t
+t
+o
+m
+R 
+bottom
+​
+  (LM393)	90,9 kΩ, 1 %	—	1	—
+5	
+R
+P
+U
+R 
+PU
+​
+  (LM393)	1 kΩ, 1 %	—	1	—
+6	
+R
+g
+R 
+g
+​
+  (AD8436)	4,02 kΩ, 0,1 %	—	1	25 ppm/°C
+6	Ekstern dæmpning (ACV)	1 MΩ + 499 kΩ, 0,1 %	—	2	25 ppm/°C
+6	Relæ K5 (ACV dæmpning)	Omron G6K-2P-Y	G6K-2P-Y DC5	1	—
+9	
+R
+3
+R 
+3
+​
+  (6N137)	330 Ω, 1 %	—	1	—
+9	
+R
+4
+R 
+4
+​
+ –
+R
+7
+R 
+7
+​
+  (PC817)	360 Ω, 1 %	—	4	—
+9	Driver-transistor	BC547	BC547B	4	
+h
+F
+E
+h 
+FE
+​
+  ≥100
+10	PTC2	500 mA hold, 600 V	MF-R050	2	CAT III
+10	Klampertransistor	BC556	BC556B	2	65 V, 100 mA
+1/2	Transformator	9 V + 9V-0-9V, 20 VA	Block TIM 20/230	1	Viklingsadskillelse ≥8 mm
+7	TFT	5" 800×480 RA8875	ER-TFTM050-3	1	3,3 V kun
+Verifikationsrækkefølge (anbefalet)
+Blok 1/2: Mål transformator-isolation (hipot 4 kV), verificer ±5 V og 3,3 V.
+
+Blok 3: Test MOV/GDT med transient-generator (6 kV, 8/20 µs).
+
+Blok 4: Mål JFET-bias (DC-punkter), AC-sweep for båndbredde.
+
+Blok 5: Mål hver strøm-range med præcisionsmultimeter.
+
+Blok 5: Mål LM393 trigger/release-spænding.
+
+Blok 6: Mål AD8436 output vs. input (linearitet, båndbredde).
+
+Blok 9: Mål optokobler 
+I
+F
+I 
+F
+​
+  og relæ-timing.
+
+Blok 10: Test klamper ved 230 V påtryk (mål restspænding).
+
+Blok 7: Test TFT ved 20 MHz SPI, verificer ingen pixel-fejl.
+
+Fuld systemtest: Kalibrer iht. CAL-PROC-V1.0, verificer alle ranges.
+
+Kritiske beslutninger, der kræver ledelsesgodkendelse
+MOV-valg: S20K550 (550 V AC) er større og dyrere end S10K300, men nødvendig for 600 V AC.
+
+ACV-dæmpning: Ekstra 1:3 dæmpning kræver ekstra relæ og modstande — øger BOM og kompleksitet.
+
+Strøm-range (10 nA): 250 MΩ modstand er upraktisk; alternativ (T-netværk) kræver flere komponenter og kalibrering.
+
+Transformator: Medicinsk-grade transformator er dyrere, men nødvendig for dokumenteret viklingsadskillelse.
+
+TFT-modul: ER-TFTM050-3 kræver 3,3 V og fjernelse af pull-ups — verificer før PCB-layout.
