@@ -51,9 +51,7 @@ Kernen i instrumentet er tre komponenter:
 | **Texas Instruments ADS1115** | 16-bit ΔΣ-ADC med PGA |
 | **Analog Devices AD8436** | Analog True RMS-til-DC konverter |
 
-Med en estimeret udsalgspris på **ca. 825 kr. inkl. moms** (ved 1.000 enheders produktion) placerer instrumentet sig som et af markedets **billigste åbne 4½-cifrede bænkmultimetre** — og det eneste i sin prisklasse, hvor **hele kildekoden og hele hardware-designet er frit tilgængeligt**.
-
-> 🏆 *"DMM-MASTER 16SRMS — et open-source colosseum i 4½-cifret-klassen."*
+Med en estimeret udsalgspris på **ca. 825 kr. inkl. moms** (ved > 1.000 enheders produktion) placerer instrumentet sig som et af markedets **billigste åbne 4½-cifrede bænkmultimetre** — og det eneste i sin prisklasse, hvor **hele kildekoden og hele hardware-designet er frit tilgængeligt**. (Ved produktion i Kina)
 
 ---
 
